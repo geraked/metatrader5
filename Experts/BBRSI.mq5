@@ -1,36 +1,54 @@
 //+------------------------------------------------------------------+
-//|                                                   EATemplate.mq5 |
+//|                                                        BBRSI.mq5 |
 //|                                          Copyright 2023, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.00"
+#property version   "1.1"
 #property description "A strategy using Bollinger Bands and RSI"
+#property description "XAUUSD-5M  2021.02.26 - 2023.09.15"
 
 #include <EAUtils.mqh>
 
-input int BBLen = 30;
-input double BBDev = 2;
-input int RSILen = 13;
-// -------------------------------
-input double SLCoef = 1.5;
-input double TPCoef = 1.1;
-input bool IgnoreSL = false;
-input bool IgnoreTP = true;
-input bool CloseOrders = true; // Close on BB Middle
-input double Risk = 0.01;
-input bool Reverse = false;
-input bool Martingale = false;
-input double MartingaleRisk = 0.04;
-input bool MultipleOpenPos = true;
-input int MarginLimit = 300;
-input int SpreadLimit = 50;
-input int MagicSeed = 1;
-input bool OpenNewPos = true;
+input group "Indicator Parameters"
+input int BBLen = 500; // BB Period
+input double BBDev = 2; // BB Deviations
+input int RSILen = 7; // RSI Period
+
+input group "General"
+input double SLCoef = 0.9; // SL Coefficient
+input double TPCoef = 1; // TP Coefficient
+input bool CloseOrders = false; // Check For Closing Conditions
+input bool Reverse = false; // Reverse Signal
+
+input group "Risk Management"
+input double Risk = 1.0; // Risk (%)
+input bool IgnoreSL = true; // Ignore SL
+input bool IgnoreTP = true; // Ignore TP
+input bool Trail = true; // Trailing Stop
+input double TrailingStopLevel = 50; // Trailing Stop Level (%)
+input double EquityDrawdownLimit = 0; // Equity Drawdown Limit (%) (0: Disable)
+
+input group "Strategy: Grid"
+input bool Grid = true; // Grid Enable
+input double GridVolMult = 1.1; // Grid Volume Multiplier
+input int GridMaxLvl = 20; // Grid Max Levels
+
+input group "Open Position Limit"
+input bool OpenNewPos = true; // Allow Opening New Position
+input bool MultipleOpenPos = false; // Allow Having Multiple Open Positions
+input double MarginLimit = 0; // Margin Limit (%) (0: Disable)
+input int SpreadLimit = -1; // Spread Limit (Points) (-1: Disable)
+
+input group "Auxiliary"
+input int Slippage = 30; // Slippage (Points)
+input int TimerInterval = 30; // Timer Interval (Seconds)
+input ulong MagicNumber = 1000; // Magic Number
 
 GerEA ea;
 datetime lastCandle;
+datetime tc;
 
 #define BuffSize 3
 #define RSIMiddle 50
@@ -49,9 +67,11 @@ bool BuySignal() {
 
     double in = Ask();
     double sl = BB_L[1] - SLCoef * (BB_M[1] - BB_L[1]);
-    double tp = in + TPCoef * (in - sl);
+    double d = MathAbs(in - sl);
+    double tp = in + TPCoef * d;
+    double isl = Grid ? true : IgnoreSL;
 
-    ea.BuyOpen(sl, tp, IgnoreSL, IgnoreTP);
+    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
 }
 
@@ -64,10 +84,12 @@ bool SellSignal() {
     if (!c) return false;
 
     double in = Bid();
-    double sl = BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]);;
-    double tp = in - TPCoef * (sl - in);
+    double sl = BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]);
+    double d = MathAbs(in - sl);
+    double tp = in - TPCoef * d;
+    double isl = Grid ? true : IgnoreSL;
 
-    ea.SellOpen(sl, tp, IgnoreSL, IgnoreTP);
+    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
 }
 
@@ -87,23 +109,48 @@ void CheckClose() {
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit() {
-    ea.Init(MagicSeed);
-    ea.risk = Risk;
+    ea.Init();
+    ea.SetMagic(MagicNumber);
+    ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
-    ea.martingale = Martingale;
-    ea.martingaleRisk = MartingaleRisk;
+    ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.gridVolMult = GridVolMult;
+    ea.gridMaxLvl = GridMaxLvl;
+    ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
+    ea.slippage = Slippage;
 
     BB_handle = iBands(NULL, 0, BBLen, 0, BBDev, PRICE_CLOSE);
     RSI_handle = iRSI(NULL, 0, RSILen, PRICE_CLOSE);
 
-    if (BB_handle < 0 || RSI_handle < 0) {
+    if (BB_handle == INVALID_HANDLE || RSI_handle == INVALID_HANDLE) {
         Print("Runtime error = ", GetLastError());
         return INIT_FAILED;
     }
 
+    EventSetTimer(TimerInterval);
+
     return INIT_SUCCEEDED;
 }
 
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+    EventKillTimer();
+}
+
+//+------------------------------------------------------------------+
+//| Timer function                                                   |
+//+------------------------------------------------------------------+
+void OnTimer() {
+    datetime oldTc = tc;
+    tc = TimeCurrent();
+    if (tc == oldTc) return;
+
+    if (Trail) ea.CheckForTrail();
+    if (EquityDrawdownLimit) ea.CheckForEquity();
+    if (Grid) ea.CheckForGrid();
+}
 
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
@@ -125,12 +172,13 @@ void OnTick() {
         if (CloseOrders) CheckClose();
 
         if (!OpenNewPos) return;
-        if (Spread() > SpreadLimit) return;
-        if (PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if (!MultipleOpenPos && ea.PosTotal() > 0) return;
+        if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
+        if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
+        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();
     }
 }
+
 //+------------------------------------------------------------------+
