@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.8"
+#property version   "1.9"
 
 #include <errordescription.mqh>
 
@@ -23,6 +23,7 @@ public:
     int mRetry;
     double trailingStopLevel;
     double gridVolMult;
+    double gridTrailingStopLevel;
     int gridMaxLvl;
     double equityDrawdownLimit;
 
@@ -36,6 +37,7 @@ public:
         mRetry = 2000;
         trailingStopLevel = 0.5;
         gridVolMult = 1.0;
+        gridTrailingStopLevel = 0;
         gridMaxLvl = 20;
         equityDrawdownLimit = 0;
     }
@@ -92,7 +94,7 @@ public:
     }
 
     void CheckForTrail() {
-        checkForTrail(magicNumber, trailingStopLevel);
+        checkForTrail(magicNumber, trailingStopLevel, gridTrailingStopLevel);
     }
 
     void CheckForGrid() {
@@ -614,9 +616,8 @@ double getProfit(ulong magic, string name = NULL) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForTrail(ulong magic, double stopLevel = 0.5) {
-    if (stopLevel == 0) return;
-
+void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0.4) {
+    int minPoints = 30;
     MqlTradeRequest req;
     MqlTradeResult res;
 
@@ -624,6 +625,7 @@ void checkForTrail(ulong magic, double stopLevel = 0.5) {
     for (int i = total - 1; i >= 0; i--) {
         ulong pticket = PositionGetTicket(i);
         string psymbol = PositionGetString(POSITION_SYMBOL);
+        double ppoint = SymbolInfoDouble(psymbol, SYMBOL_POINT);
         int pdigits = (int) SymbolInfoInteger(psymbol, SYMBOL_DIGITS);
         ulong pmagic = PositionGetInteger(POSITION_MAGIC);
         double pin = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -636,50 +638,141 @@ void checkForTrail(ulong magic, double stopLevel = 0.5) {
         if (pmagic != magic) continue;
         if (pd == 0) continue;
         if (pstm == SYMBOL_TRADE_MODE_DISABLED || pstm == SYMBOL_TRADE_MODE_CLOSEONLY) continue;
-        //if (TimeCurrent() - SymbolInfoInteger(psymbol, SYMBOL_TIME) > PeriodSeconds(PERIOD_M1)) continue;
 
-        ZeroMemory(req);
-        ZeroMemory(res);
-        req.action = TRADE_ACTION_SLTP;
-        req.position = pticket;
-        req.symbol = psymbol;
-        req.magic = pmagic;
-        req.sl = psl;
-        req.tp = ptp;
+        ulong tickets[];
+        int n = positionsTickets(pmagic, tickets, psymbol);
+        int k = 0;
+        for (int j = 0; j < n; j++) {
+            PositionSelectByTicket(tickets[j]);
+            if (StringToDouble(PositionGetString(POSITION_COMMENT))) k++;
+        }
 
         double sl;
         double cost = calcCost(pmagic, psymbol);
         double brkeven = calcPrice(pmagic, cost, 0, 0, psymbol);
 
-        if (ptype == POSITION_TYPE_BUY) {
-            double h = Bid(psymbol);
-            if (h <= pin) continue;
-            double d = h - pin;
+        if (n == 1 || k > 1) {
+            if (stopLevel == 0) continue;
 
-            sl = MathMax(pin, brkeven) + d - stopLevel * pd;
-            if (sl < pin) continue;
+            ZeroMemory(req);
+            ZeroMemory(res);
+            req.action = TRADE_ACTION_SLTP;
+            req.position = pticket;
+            req.symbol = psymbol;
+            req.magic = pmagic;
+            req.sl = psl;
+            req.tp = ptp;
 
-            sl = NormalizeDouble(sl, pdigits);
-            if (psl != 0 && (psl >= sl || sl > Bid(psymbol))) continue;
-            req.sl = sl;
+            if (ptype == POSITION_TYPE_BUY) {
+                double h = Bid(psymbol);
+                if (h <= pin) continue;
+                double d = h - pin;
+                sl = MathMax(pin, brkeven) + d - stopLevel * pd;
+                sl = NormalizeDouble(sl, pdigits);
+                if (sl < pin) continue;
+                if (psl != 0 && (psl >= sl || sl > Bid(psymbol))) continue;
+                req.sl = sl;
+            }
+
+            else if (ptype == POSITION_TYPE_SELL) {
+                double l = Ask(psymbol);
+                if (l >= pin) continue;
+                double d = pin - l;
+                sl = MathMin(pin, brkeven) - d + stopLevel * pd;
+                sl = NormalizeDouble(sl, pdigits);
+                if (sl > pin) continue;
+                if (psl != 0 && (psl <= sl || sl < Ask(psymbol))) continue;
+                req.sl = sl;
+            }
+
+            if (!OrderSend(req, res)) {
+                int err = GetLastError();
+                PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+            }
         }
 
-        else if (ptype == POSITION_TYPE_SELL) {
-            double l = Ask(psymbol);
-            if (l >= pin) continue;
-            double d = pin - l;
+        else {
+            if (gridStopLevel == 0) continue;
 
-            sl = MathMin(pin, brkeven) - d + stopLevel * pd;
-            if (sl > pin) continue;
+            for (int j = 0; j < n; j++) {
+                PositionSelectByTicket(tickets[j]);
+                if (ptype == POSITION_TYPE_BUY && PositionGetDouble(POSITION_TP) < ptp)
+                    ptp = PositionGetDouble(POSITION_TP);
+                if (ptype == POSITION_TYPE_SELL && PositionGetDouble(POSITION_TP) > ptp)
+                    ptp = PositionGetDouble(POSITION_TP);
+            }
 
-            sl = NormalizeDouble(sl, pdigits);
-            if (psl != 0 && (psl <= sl || sl < Ask(psymbol))) continue;
-            req.sl = sl;
-        }
+            double target_prof = calcProfit(pmagic, ptp, psymbol);
+            double per_target = calcPrice(pmagic, gridStopLevel * target_prof, 0, 0, psymbol);
 
-        if (!OrderSend(req, res)) {
-            int err = GetLastError();
-            PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+            if (ptype == POSITION_TYPE_BUY) {
+                double h = Bid(psymbol);
+                if (h <= per_target) continue;
+                double d = h - per_target;
+                sl = brkeven + d;
+                sl = NormalizeDouble(sl, pdigits);
+                if (!(Bid(psymbol) - sl >= minPoints * ppoint)) continue;
+                if (psl != 0 && psl >= sl) continue;
+
+                for (int j = 0; j < n; j++) {
+                    PositionSelectByTicket(tickets[j]);
+                    ZeroMemory(req);
+                    ZeroMemory(res);
+                    req.action = TRADE_ACTION_SLTP;
+                    req.position = tickets[j];
+                    req.symbol = psymbol;
+                    req.magic = pmagic;
+                    req.sl = sl;
+                    req.tp = ptp;
+
+                    if (pticket == tickets[j]) {
+                        if (!OrderSend(req, res)) {
+                            int err = GetLastError();
+                            PrintFormat("%s (grid, long) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                        }
+                    } else {
+                        if (!OrderSendAsync(req, res)) {
+                            int err = GetLastError();
+                            PrintFormat("%s (grid, long) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                        }
+                    }
+                }
+            }
+
+            else if (ptype == POSITION_TYPE_SELL) {
+                double l = Ask(psymbol);
+                if (l >= per_target) continue;
+                double d = per_target - l;
+                sl = brkeven - d;
+                sl = NormalizeDouble(sl, pdigits);
+                if (!(sl - Ask(psymbol) >= minPoints * ppoint)) continue;
+                if (psl != 0 && psl <= sl) continue;
+
+                for (int j = 0; j < n; j++) {
+                    PositionSelectByTicket(tickets[j]);
+                    ZeroMemory(req);
+                    ZeroMemory(res);
+                    req.action = TRADE_ACTION_SLTP;
+                    req.position = tickets[j];
+                    req.symbol = psymbol;
+                    req.magic = pmagic;
+                    req.sl = sl;
+                    req.tp = ptp;
+
+                    if (pticket == tickets[j]) {
+                        if (!OrderSend(req, res)) {
+                            int err = GetLastError();
+                            PrintFormat("%s (grid, short) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                        }
+                    } else {
+                        if (!OrderSendAsync(req, res)) {
+                            int err = GetLastError();
+                            PrintFormat("%s (grid, short) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                        }
+                    }
+                }
+            }
+
         }
     }
 }
@@ -827,5 +920,7 @@ void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3
     closeOrders(POSITION_TYPE_BUY, magic, slippage, max_symbol, nRetry, mRetry);
     closeOrders(POSITION_TYPE_SELL, magic, slippage, max_symbol, nRetry, mRetry);
 }
+
+//+------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+

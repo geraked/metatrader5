@@ -10,27 +10,45 @@
 #include <EAUtils.mqh>
 
 
+input group "Indicator Parameters"
+input int P1 = 0;
 
-// -------------------------------
-input double SLCoef = 1.0;
-input double TPCoef = 1.0;
-input bool IgnoreSL = false;
-input bool IgnoreTP = false;
-input bool CloseOrders = true;
-input int BuffSize = 512;
-input double Risk = 0.01;
-input bool Reverse = false;
-input bool Martingale = false;
-input double MartingaleRisk = 0.04;
-input bool MultipleOpenPos = true;
-input int MarginLimit = 300;
-input int SpreadLimit = 50;
-input int MagicSeed = 1;
-input bool OpenNewPos = true;
+input group "General"
+input double SLCoef = 1.0; // SL Coefficient
+input double TPCoef = 1.0; // TP Coefficient
+input bool CloseOrders = true; // Check For Closing Conditions
+input bool Reverse = false; // Reverse Signal
+
+input group "Risk Management"
+input double Risk = 1.0; // Risk (%)
+input bool IgnoreSL = false; // Ignore SL
+input bool IgnoreTP = false; // Ignore TP
+input bool Trail = false; // Trailing Stop
+input double TrailingStopLevel = 50; // Trailing Stop Level (%) (0: Disable)
+input double EquityDrawdownLimit = 0; // Equity Drawdown Limit (%) (0: Disable)
+
+input group "Strategy: Grid"
+input bool Grid = false; // Grid Enable
+input double GridVolMult = 1.0; // Grid Volume Multiplier
+input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
+input int GridMaxLvl = 20; // Grid Max Levels
+
+input group "Open Position Limit"
+input bool OpenNewPos = true; // Allow Opening New Position
+input bool MultipleOpenPos = true; // Allow Having Multiple Open Positions
+input double MarginLimit = 300; // Margin Limit (%) (0: Disable)
+input int SpreadLimit = -1; // Spread Limit (Points) (-1: Disable)
+
+input group "Auxiliary"
+input int Slippage = 30; // Slippage (Points)
+input int TimerInterval = 30; // Timer Interval (Seconds)
+input ulong MagicNumber = 1000; // Magic Number
+
+int BuffSize = 512;
 
 GerEA ea;
 datetime lastCandle;
-
+datetime tc;
 
 //+------------------------------------------------------------------+
 //|                                                                  |
@@ -41,9 +59,11 @@ bool BuySignal() {
 
     double in = Ask();
     double sl = 0;
+    double d = MathAbs(in - sl);
     double tp = 0;
+    bool isl = Grid ? true : IgnoreSL;
 
-    ea.BuyOpen(sl, tp, IgnoreSL, IgnoreTP);
+    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
 }
 
@@ -57,13 +77,18 @@ bool SellSignal() {
 
     double in = Bid();
     double sl = 0;
+    double d = MathAbs(in - sl);
     double tp = 0;
+    bool isl = Grid ? true : IgnoreSL;
 
-    ea.SellOpen(sl, tp, IgnoreSL, IgnoreTP);
+    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
 }
 
 
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 void CheckClose() {
 
 }
@@ -73,21 +98,46 @@ void CheckClose() {
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit() {
-    ea.Init(MagicSeed);
+    ea.Init();
+    ea.SetMagic(MagicNumber);
+    ea.risk = Risk * 0.01;
+    ea.reverse = Reverse;
+    ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.gridVolMult = GridVolMult;
+    ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
+    ea.gridMaxLvl = GridMaxLvl;
+    ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
+    ea.slippage = Slippage;
 
 //if (ea.IsAuthorized())
 //    Print("AHSANT");
 //else
 //    return INIT_FAILED;
 
-    ea.risk = Risk;
-    ea.reverse = Reverse;
-    ea.martingale = Martingale;
-    ea.martingaleRisk = MartingaleRisk;
+    EventSetTimer(TimerInterval);
 
     return INIT_SUCCEEDED;
 }
 
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason) {
+    EventKillTimer();
+}
+
+//+------------------------------------------------------------------+
+//| Timer function                                                   |
+//+------------------------------------------------------------------+
+void OnTimer() {
+    datetime oldTc = tc;
+    tc = TimeCurrent();
+    if (tc == oldTc) return;
+
+    if (Trail) ea.CheckForTrail();
+    if (EquityDrawdownLimit) ea.CheckForEquity();
+    if (Grid) ea.CheckForGrid();
+}
 
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
@@ -99,9 +149,9 @@ void OnTick() {
         if (CloseOrders) CheckClose();
 
         if (!OpenNewPos) return;
-        if (Spread() > SpreadLimit) return;
-        if (PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if (!MultipleOpenPos && ea.PosTotal() > 0) return;
+        if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
+        if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
+        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();

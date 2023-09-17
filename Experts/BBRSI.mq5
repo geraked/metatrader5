@@ -33,12 +33,13 @@ input double EquityDrawdownLimit = 0; // Equity Drawdown Limit (%) (0: Disable)
 input group "Strategy: Grid"
 input bool Grid = true; // Grid Enable
 input double GridVolMult = 1.1; // Grid Volume Multiplier
+input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
 input int GridMaxLvl = 20; // Grid Max Levels
 
 input group "Open Position Limit"
 input bool OpenNewPos = true; // Allow Opening New Position
 input bool MultipleOpenPos = false; // Allow Having Multiple Open Positions
-input double MarginLimit = 0; // Margin Limit (%) (0: Disable)
+input double MarginLimit = 300; // Margin Limit (%) (0: Disable)
 input int SpreadLimit = -1; // Spread Limit (Points) (-1: Disable)
 
 input group "Auxiliary"
@@ -69,7 +70,7 @@ bool BuySignal() {
     double sl = BB_L[1] - SLCoef * (BB_M[1] - BB_L[1]);
     double d = MathAbs(in - sl);
     double tp = in + TPCoef * d;
-    double isl = Grid ? true : IgnoreSL;
+    bool isl = Grid ? true : IgnoreSL;
 
     ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
@@ -87,7 +88,7 @@ bool SellSignal() {
     double sl = BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]);
     double d = MathAbs(in - sl);
     double tp = in - TPCoef * d;
-    double isl = Grid ? true : IgnoreSL;
+    bool isl = Grid ? true : IgnoreSL;
 
     ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
     return true;
@@ -115,6 +116,7 @@ int OnInit() {
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
     ea.gridVolMult = GridVolMult;
+    ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;
     ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
     ea.slippage = Slippage;
