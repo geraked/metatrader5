@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.7"
+#property version   "1.8"
 
 #include <errordescription.mqh>
 
@@ -202,6 +202,8 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
     name = name == NULL ? _Symbol : name;
     if (balance == 0)
         balance = MathMin(AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_MARGIN_FREE));
+    if (sl == 0)
+        sl = tp;
 
     double point = SymbolInfoDouble(name, SYMBOL_POINT);
     double tvl = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_LOSS);
