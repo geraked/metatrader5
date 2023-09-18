@@ -12,10 +12,13 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 
 Additionally, there are strategies available for utilization within TradingView. If this piques your interest, you can explore them in this [repository](https://github.com/geraked/tradingview).
 
+## Caution
+
+Please be aware that some Expert Advisors (EAs) have been combined with the Grid technique to forcefully enhance profitability, but this approach also introduces significant risk. It's important to note that the optimal symbol, time frame, and parameters for each EA may vary depending on your broker and account specifications. Therefore, before deploying any EA on your live account, we strongly recommend conducting thorough backtesting to ensure its effectiveness and reliability.
 
 ## Support the Project
 
-If you find these Expert Advisors (EAs) helpful and profitable, you have the option to support the ongoing development and maintenance of this open-source project. Your support helps ensure the availability of future updates and development of new EAs.
+If you find these EAs helpful and profitable, you have the option to support the ongoing development and maintenance of this open-source project. Your support helps ensure the availability of future updates and development of new EAs.
 
 ### Contribution Request
 
