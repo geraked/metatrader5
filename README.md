@@ -41,3 +41,19 @@ Thank you for your support!
 ## License
 
 This project is licensed under the [MIT LICENSE](LICENSE). This means you can modify it however you want as long as the original copyright and license are included in your release.
+
+## Disclaimer
+
+**USE AT YOUR OWN RISK:** Trading financial instruments involves a high level of risk, and there are no guarantees of profit. Markets are known for their volatility, and past performance is not indicative of future results.
+
+**Not Financial Advice:** The information, EAs, and strategies presented in this repository do not constitute financial advice. You should consult with a qualified advisor and conduct your own research before making any trading decisions. Any decisions you make based on the content of this repository are your sole responsibility.
+
+**No Liability:** The maintainers of this repository and contributors are not liable for any losses or damages incurred as a result of using the trading strategies, EAs, or information provided here. You assume full responsibility for your trading activities, and any gains or losses are entirely your own.
+
+**No Warranty:** The trading strategies and EAs are provided "as is" without any warranty, express or implied. There is no guarantee that the EAs will be error-free or meet your specific requirements.
+
+By using the trading strategies, EAs, or information in this repository, you acknowledge and accept the inherent risks associated with trading and agree to release the maintainers and contributors from any liability.
+
+Always exercise caution and practice responsible trading. Your financial well-being is of utmost importance, and you should only trade with funds you can afford to lose.
+
+Thank you for your understanding, and we wish you success in your trading endeavors.
