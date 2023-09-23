@@ -3,9 +3,9 @@
 //|                                          Copyright 2023, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2023, Geraked"
-#property link      "https://github.com/geraked"
-#property version   "1.1"
+#property copyright   "Copyright 2023, Geraked"
+#property link        "https://github.com/geraked"
+#property version     "1.2"
 #property description "A strategy using Bollinger Bands and RSI"
 #property description "XAUUSD-5M  2021.02.26 - 2023.09.15"
 
@@ -20,6 +20,7 @@ input group "General"
 input double SLCoef = 0.9; // SL Coefficient
 input double TPCoef = 1; // TP Coefficient
 input bool CloseOrders = false; // Check For Closing Conditions
+input bool CloseOnProfit = true; // Close Only On Profit
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
@@ -99,6 +100,11 @@ bool SellSignal() {
 //|                                                                  |
 //+------------------------------------------------------------------+
 void CheckClose() {
+    if (CloseOnProfit) {
+        double p = getProfit(ea.GetMagic()) - calcCost(ea.GetMagic());
+        if (p < 0) return;
+    }
+
     if (Close(2) <= BB_M[2] && Close(1) > BB_M[1])
         ea.BuyClose();
     if (Close(2) >= BB_M[2] && Close(1) < BB_M[1])

@@ -6,7 +6,7 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 | --- | :---: | :---: | :---: | --- |
 | [CEZLSMA](Experts/CEZLSMA.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/CEZLSMA/CEZLSMA-v1.1.ex5) | [:arrow_forward:](https://youtu.be/2U5VTWBBK8U) | [:chart_with_upwards_trend:](Test/CEZLSMA) | A strategy using [Chandelier Exit](Indicators/ChandelierExit.mq5) and [ZLSMA](Indicators/ZLSMA.mq5) indicators based on the Heikin Ashi candles |
 | [3MAF](Experts/3MAF.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/3MAF/3MAF-v1.1.ex5) | [:arrow_forward:](https://youtu.be/bKPs2aOsvsk) | [:chart_with_upwards_trend:](Test/3MAF) | A strategy using three Moving Averages and Williams Fractals |
-| [BBRSI](Experts/BBRSI.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/BBRSI/BBRSI-v1.1.ex5) | [:arrow_forward:](https://youtu.be/pCmJ8wsAS_w) | [:chart_with_upwards_trend:](Test/BBRSI) | A strategy using Bollinger Bands and RSI |
+| [BBRSI](Experts/BBRSI.mq5) | [:label: v1.2](https://github.com/geraked/metatrader5/raw/master/Build/BBRSI/BBRSI-v1.2.ex5) | [:arrow_forward:](https://youtu.be/pCmJ8wsAS_w) | [:chart_with_upwards_trend:](Test/BBRSI) | A strategy using Bollinger Bands and RSI |
 | [DHLAOS](Experts/DHLAOS.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/DHLAOS/DHLAOS-v1.1.ex5) | [:arrow_forward:](https://youtu.be/IZVSb1kjduQ) | [:chart_with_upwards_trend:](Test/DHLAOS) | A strategy using [Daily High/Low](Indicators/DailyHighLow.mq5) and [Andean Oscillator](Indicators/AndeanOscillator.mq5) indicators for scalping |
 
 
