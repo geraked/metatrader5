@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.9"
+#property version   "1.10"
 
 #include <errordescription.mqh>
 
@@ -667,7 +667,12 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
                 double h = Bid(psymbol);
                 if (h <= pin) continue;
                 double d = h - pin;
-                sl = MathMax(pin, brkeven) + d - stopLevel * pd;
+
+                if (k > 1)
+                    sl = pin + d - stopLevel * pd + minPoints * ppoint;
+                else
+                    sl = MathMax(pin, brkeven) + d - stopLevel * pd;
+
                 sl = NormalizeDouble(sl, pdigits);
                 if (sl < pin) continue;
                 if (psl != 0 && (psl >= sl || sl > Bid(psymbol))) continue;
@@ -678,7 +683,12 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
                 double l = Ask(psymbol);
                 if (l >= pin) continue;
                 double d = pin - l;
-                sl = MathMin(pin, brkeven) - d + stopLevel * pd;
+
+                if (k > 1)
+                    sl = pin - d + stopLevel * pd - minPoints * ppoint;
+                else
+                    sl = MathMin(pin, brkeven) - d + stopLevel * pd;
+
                 sl = NormalizeDouble(sl, pdigits);
                 if (sl > pin) continue;
                 if (psl != 0 && (psl <= sl || sl < Ask(psymbol))) continue;
@@ -920,7 +930,5 @@ void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3
     closeOrders(POSITION_TYPE_BUY, magic, slippage, max_symbol, nRetry, mRetry);
     closeOrders(POSITION_TYPE_SELL, magic, slippage, max_symbol, nRetry, mRetry);
 }
-
-//+------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
