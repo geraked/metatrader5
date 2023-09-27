@@ -8,6 +8,7 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 | [3MAF](Experts/3MAF.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/3MAF/3MAF-v1.1.ex5) | [:arrow_forward:](https://youtu.be/bKPs2aOsvsk) | [:chart_with_upwards_trend:](Test/3MAF) | A strategy using three Moving Averages and Williams Fractals |
 | [BBRSI](Experts/BBRSI.mq5) | [:label: v1.2](https://github.com/geraked/metatrader5/raw/master/Build/BBRSI/BBRSI-v1.2.ex5) | [:arrow_forward:](https://youtu.be/pCmJ8wsAS_w) | [:chart_with_upwards_trend:](Test/BBRSI) | A strategy using Bollinger Bands and RSI |
 | [DHLAOS](Experts/DHLAOS.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/DHLAOS/DHLAOS-v1.1.ex5) | [:arrow_forward:](https://youtu.be/IZVSb1kjduQ) | [:chart_with_upwards_trend:](Test/DHLAOS) | A strategy using [Daily High/Low](Indicators/DailyHighLow.mq5) and [Andean Oscillator](Indicators/AndeanOscillator.mq5) indicators for scalping |
+| [3MACD](Experts/3MACD.mq5) | [:label: v1.0](https://github.com/geraked/metatrader5/raw/master/Build/3MACD/3MACD-v1.0.ex5) | [:arrow_forward:](https://youtu.be/1sdYRBpthnM) | [:chart_with_upwards_trend:](Test/3MACD) | A strategy using triple MACDs for scalping |
 
 
 Additionally, there are strategies available for utilization within TradingView. If this piques your interest, you can explore them in this [repository](https://github.com/geraked/tradingview).
