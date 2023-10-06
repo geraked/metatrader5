@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.1"
+#property version     "1.2"
 #property description "A Strategy Using Chandelier Exit and ZLSMA Indicators Based on the Heikin Ashi Candles"
 #property description "AUDUSD-15M  2019.01.01 - 2023.08.01"
 
@@ -22,7 +22,7 @@ input bool CloseOrders = true; // Check For Closing Conditions
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 2; // Risk (%)
+input double Risk = 3; // Risk (%)
 input bool IgnoreSL = true; // Ignore SL
 input bool Trail = true; // Trailing Stop
 input double TrailingStopLevel = 50; // Trailing Stop Level (%) (0: Disable)
