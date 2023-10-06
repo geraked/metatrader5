@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.10"
+#property version   "1.11"
 
 #include <errordescription.mqh>
 
@@ -33,7 +33,7 @@ public:
         martingale = false;
         slippage = 30;
         reverse = false;
-        nRetry = 3;
+        nRetry = 5;
         mRetry = 2000;
         trailingStopLevel = 0.5;
         gridVolMult = 1.0;
@@ -322,10 +322,10 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
         cnt++;
 
         if (ot == ORDER_TYPE_BUY) {
-            if (res.ask) req.price = res.ask;
+            if (res.ask && Ask(name) == req.price) req.price = res.ask;
             else req.price = Ask(name);
         } else if (ot == ORDER_TYPE_SELL) {
-            if (res.bid) req.price = res.bid;
+            if (res.bid && Bid(name) == req.price) req.price = res.bid;
             else req.price = Bid(name);
         }
 
@@ -419,10 +419,10 @@ bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 20
         cnt++;
 
         if (ptype == POSITION_TYPE_BUY) {
-            if (res.bid) req.price = res.bid;
+            if (res.bid && Bid(psymbol) == req.price) req.price = res.bid;
             else req.price = Bid(psymbol);
         } else {
-            if (res.ask) req.price = res.ask;
+            if (res.ask && Ask(psymbol) == req.price) req.price = res.ask;
             else req.price = Ask(psymbol);
         }
 
