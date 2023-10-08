@@ -9,7 +9,7 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 | [BBRSI](Experts/BBRSI.mq5) | [:label: v1.2](https://github.com/geraked/metatrader5/raw/master/Build/BBRSI/BBRSI-v1.2.ex5) | [:arrow_forward:](https://youtu.be/pCmJ8wsAS_w) | [:chart_with_upwards_trend:](Test/BBRSI) | A strategy using Bollinger Bands and RSI |
 | [DHLAOS](Experts/DHLAOS.mq5) | [:label: v1.1](https://github.com/geraked/metatrader5/raw/master/Build/DHLAOS/DHLAOS-v1.1.ex5) | [:arrow_forward:](https://youtu.be/IZVSb1kjduQ) | [:chart_with_upwards_trend:](Test/DHLAOS) | A strategy using [Daily High/Low](Indicators/DailyHighLow.mq5) and [Andean Oscillator](Indicators/AndeanOscillator.mq5) indicators for scalping |
 | [3MACD](Experts/3MACD.mq5) | [:label: v1.0](https://github.com/geraked/metatrader5/raw/master/Build/3MACD/3MACD-v1.0.ex5) | [:arrow_forward:](https://youtu.be/1sdYRBpthnM) | [:chart_with_upwards_trend:](Test/3MACD) | A strategy using triple MACDs for scalping |
-
+| [2MACDSTO](Experts/2MACDSTO.mq5) | [:label: v1.0](https://github.com/geraked/metatrader5/raw/master/Build/2MACDSTO/2MACDSTO-v1.0.ex5) | [:arrow_forward:](https://youtu.be/yDJil-W-WJQ) | [:chart_with_upwards_trend:](Test/2MACDSTO) | A strategy using two MACDs and Stochastic Oscillator |
 
 Additionally, there are strategies available for utilization within TradingView. If this piques your interest, you can explore them in this [repository](https://github.com/geraked/tradingview).
 
