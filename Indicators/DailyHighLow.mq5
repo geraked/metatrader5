@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.1"
+#property version   "1.2"
 #property indicator_chart_window
 #property indicator_buffers 2
 #property indicator_plots   2
@@ -32,6 +32,8 @@ input ENUM_TIMEFRAMES TimeFrame = PERIOD_D1;
 input bool Previous = true;
 input ENUM_DHL_PRICE Price = DHL_LOWHIGH;
 
+ENUM_TIMEFRAMES tf;
+
 double HighBuffer[];
 double LowBuffer[];
 
@@ -41,6 +43,7 @@ double LowBuffer[];
 int OnInit() {
     SetIndexBuffer(0, HighBuffer, INDICATOR_DATA);
     SetIndexBuffer(1, LowBuffer, INDICATOR_DATA);
+    tf = PeriodSeconds(TimeFrame) < PeriodSeconds(PERIOD_CURRENT) ? PERIOD_CURRENT : TimeFrame;
     return(INIT_SUCCEEDED);
 }
 
@@ -72,52 +75,54 @@ int OnCalculate(const int rates_total,
     int limit = rates_total - prev_calculated;
     if (limit == 0) limit = 1;
 
-    int i1 = iBarShift(NULL, 0, iTime(NULL, TimeFrame, 1));
-    int i2 = iBarShift(NULL, 0, iTime(NULL, TimeFrame, 2));
+    int i1 = iBarShift(NULL, 0, iTime(NULL, tf, 1));
+    int i2 = iBarShift(NULL, 0, iTime(NULL, tf, 2));
     if (i1 == -1 || i2 == -1) return(0);
     int k = i2 - i1;
     limit = MathMax(i2 - i1 + 2, limit);
     if (limit > rates_total) return(0);
-    if (iBarShift(NULL, TimeFrame, time[rates_total - (i2 - i1 + 2)]) == -1) return(0);
+    if (iBarShift(NULL, tf, time[rates_total - (i2 - i1 + 2)]) == -1) return(0);
 
     for (int i = 0; i < limit && !IsStopped(); i++) {
-        int j = iBarShift(NULL, TimeFrame, time[i]);
+        int j = iBarShift(NULL, tf, time[i]);
         if (j == -1) continue;
         if (Previous) j += 1;
 
         if (Price == DHL_LOWHIGH) {
-            HighBuffer[i] = iHigh(NULL, TimeFrame, j);
-            LowBuffer[i] = iLow(NULL, TimeFrame, j);
+            HighBuffer[i] = iHigh(NULL, tf, j);
+            LowBuffer[i] = iLow(NULL, tf, j);
         }
 
         else {
-            int i1 = iBarShift(NULL, 0, iTime(NULL, TimeFrame, j));
-            int i2 = j == 0 ? 0 : iBarShift(NULL, 0, iTime(NULL, TimeFrame, j - 1));
+            int i1 = iBarShift(NULL, 0, iTime(NULL, tf, j));
+            int i2 = j == 0 ? 0 : iBarShift(NULL, 0, iTime(NULL, tf, j - 1));
             int cnt = i1 - i2;
 
-            if (cnt == 0) {
-                cnt = 1;
+            if (cnt < k) {
+                cnt++;
             } else if (cnt == k) {
                 if (i1 > i2)
                     i2++;
-            } else if (cnt < k) {
-                cnt++;
             }
 
-            if (i2 + cnt >= rates_total) continue;
+            int ihc = iHighest(NULL, 0, MODE_CLOSE, cnt, i2);
+            int iho = iHighest(NULL, 0, MODE_OPEN, cnt, i2);
+            int ilc = iLowest(NULL, 0, MODE_CLOSE, cnt, i2);
+            int ilo = iLowest(NULL, 0, MODE_OPEN, cnt, i2);
+
+            if (ihc < 0 || ihc >= rates_total) continue;
+            if (iho < 0 || iho >= rates_total) continue;
+            if (ilc < 0 || ilc >= rates_total) continue;
+            if (ilo < 0 || ilo >= rates_total) continue;
 
             if (Price == DHL_CLOSECLOSE) {
-                HighBuffer[i] = close[iHighest(NULL, 0, MODE_CLOSE, cnt, i2)];
-                LowBuffer[i] = close[iLowest(NULL, 0, MODE_CLOSE, cnt, i2)];
+                HighBuffer[i] = close[ihc];
+                LowBuffer[i] = close[ilc];
             }
 
             else if (Price == DHL_OPENCLOSE) {
-                double hc = close[iHighest(NULL, 0, MODE_CLOSE, cnt, i2)];
-                double ho = open[iHighest(NULL, 0, MODE_OPEN, cnt, i2)];
-                double lc = close[iLowest(NULL, 0, MODE_CLOSE, cnt, i2)];
-                double lo = open[iLowest(NULL, 0, MODE_OPEN, cnt, i2)];
-                HighBuffer[i] = MathMax(hc, ho);
-                LowBuffer[i] = MathMin(lc, lo);
+                HighBuffer[i] = MathMax(close[ihc], open[iho]);
+                LowBuffer[i] = MathMin(close[ilc], open[ilo]);
             }
         }
     }
