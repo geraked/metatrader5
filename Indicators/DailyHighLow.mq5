@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.2"
+#property version   "1.3"
 #property indicator_chart_window
 #property indicator_buffers 2
 #property indicator_plots   2
@@ -66,11 +66,6 @@ int OnCalculate(const int rates_total,
     ArraySetAsSeries(close, true);
     ArraySetAsSeries(HighBuffer, true);
     ArraySetAsSeries(LowBuffer, true);
-
-    if (prev_calculated == 0) {
-        ArrayInitialize(HighBuffer, 0);
-        ArrayInitialize(LowBuffer, 0);
-    }
 
     int limit = rates_total - prev_calculated;
     if (limit == 0) limit = 1;
