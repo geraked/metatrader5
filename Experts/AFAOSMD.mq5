@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.0"
+#property version     "1.1"
 #property description "A strategy using Average Force, Andean Oscillator, and MACD"
-#property description "GBPAUD-30M  2019.01.01 - 2023.10.18"
+#property description "NZDCAD-30M  2019.01.01 - 2023.10.22"
 
 #include <EAUtils.mqh>
 
@@ -34,12 +34,12 @@ input int MdSlow = 200; // MACD Slow
 
 input group "General"
 input double TPCoef = 1.0; // TP Coefficient
-input int SLLookback = 10; // SL Look Back
+input int SLLookback = 7; // SL Look Back
 input int SLDev = 60; // SL Deviation (Points)
-input bool Reverse = false; // Reverse Signal
+input bool Reverse = true; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 1.4; // Risk (%)
+input double Risk = 1.0; // Risk (%)
 input bool IgnoreSL = false; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -48,7 +48,7 @@ input double EquityDrawdownLimit = 0; // Equity Drawdown Limit (%) (0: Disable)
 
 input group "Strategy: Grid"
 input bool Grid = true; // Grid Enable
-input double GridVolMult = 1.6; // Grid Volume Multiplier
+input double GridVolMult = 1.1; // Grid Volume Multiplier
 input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
 input int GridMaxLvl = 20; // Grid Max Levels
 
