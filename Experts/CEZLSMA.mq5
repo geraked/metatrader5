@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.2"
+#property version     "1.3"
 #property description "A Strategy Using Chandelier Exit and ZLSMA Indicators Based on the Heikin Ashi Candles"
 #property description "AUDUSD-15M  2019.01.01 - 2023.08.01"
 
@@ -33,6 +33,13 @@ input bool Grid = true; // Grid Enable
 input double GridVolMult = 1.5; // Grid Volume Multiplier
 input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
 input int GridMaxLvl = 50; // Grid Max Levels
+
+input group "News"
+input bool News = false; // News Enable
+input ENUM_NEWS_IMPORTANCE NewsImportance = NEWS_IMPORTANCE_MEDIUM; // News Importance
+input int NewsMinsBefore = 60; // News Minutes Before
+input int NewsMinsAfter = 60; // News Minutes After
+input int NewsStartYear = 0; // News Start Year to Fetch for Backtesting (0: Disable)
 
 input group "Open Position Limit"
 input bool OpenNewPos = true; // Allow Opening New Position
@@ -132,6 +139,12 @@ int OnInit() {
     ea.gridMaxLvl = GridMaxLvl;
     ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
     ea.slippage = Slippage;
+    ea.news = News;
+    ea.newsImportance = NewsImportance;
+    ea.newsMinsBefore = NewsMinsBefore;
+    ea.newsMinsAfter = NewsMinsAfter;
+
+    if (News) fetchCalendarFromYear(NewsStartYear);
 
     HA_handle = iCustom(NULL, 0, I_HA);
     CE_handle = iCustom(NULL, 0, I_CE, CeAtrPeriod, CeAtrMult);

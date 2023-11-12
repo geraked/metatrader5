@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.0"
+#property version     "1.1"
 #property description "A strategy using Linear Regression Candles and UT Bot Alerts"
 #property description "AUDCAD-15M  2019.01.01 - 2023.10.30"
 
@@ -36,6 +36,13 @@ input bool Grid = true; // Grid Enable
 input double GridVolMult = 1.2; // Grid Volume Multiplier
 input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
 input int GridMaxLvl = 50; // Grid Max Levels
+
+input group "News"
+input bool News = false; // News Enable
+input ENUM_NEWS_IMPORTANCE NewsImportance = NEWS_IMPORTANCE_MEDIUM; // News Importance
+input int NewsMinsBefore = 60; // News Minutes Before
+input int NewsMinsAfter = 60; // News Minutes After
+input int NewsStartYear = 0; // News Start Year to Fetch for Backtesting (0: Disable)
 
 input group "Open Position Limit"
 input bool OpenNewPos = true; // Allow Opening New Position
@@ -150,6 +157,12 @@ int OnInit() {
     ea.gridMaxLvl = GridMaxLvl;
     ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
     ea.slippage = Slippage;
+    ea.news = News;
+    ea.newsImportance = NewsImportance;
+    ea.newsMinsBefore = NewsMinsBefore;
+    ea.newsMinsAfter = NewsMinsAfter;
+
+    if (News) fetchCalendarFromYear(NewsStartYear);
 
     BuffSize = 4;
 

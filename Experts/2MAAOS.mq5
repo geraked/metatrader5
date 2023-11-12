@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.0"
+#property version     "1.1"
 #property description "A strategy using two Moving Averages and Andean Oscillator"
 #property description "Multiple Symbols(EURUSD, EURCAD, USDCAD)-4H  2019.01.01 - 2023.10.17"
 
@@ -50,6 +50,13 @@ input bool Grid = true; // Grid Enable
 input double GridVolMult = 1.3; // Grid Volume Multiplier
 input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disable)
 input int GridMaxLvl = 20; // Grid Max Levels
+
+input group "News"
+input bool News = true; // News Enable
+input ENUM_NEWS_IMPORTANCE NewsImportance = NEWS_IMPORTANCE_MEDIUM; // News Importance
+input int NewsMinsBefore = 60; // News Minutes Before
+input int NewsMinsAfter = 60; // News Minutes After
+input int NewsStartYear = 2019; // News Start Year to Fetch for Backtesting (0: Disable)
 
 input group "Open Position Limit"
 input bool OpenNewPos = true; // Allow Opening New Position
@@ -115,7 +122,7 @@ void CheckForSignal() {
         int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
 
         if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
-        if (RecentlyHadPos(s)) continue;
+        if (hasDealRecently(ea.GetMagic(), s, MinPosInterval)) continue;
 
         bool bc = AOS(s, AOS_BI_BULL, 2) <= AOS(s, AOS_BI_SIGNAL, 2) && AOS(s, AOS_BI_BULL, 1) > AOS(s, AOS_BI_SIGNAL, 1);
         bool sc = AOS(s, AOS_BI_BEAR, 2) <= AOS(s, AOS_BI_SIGNAL, 2) && AOS(s, AOS_BI_BEAR, 1) > AOS(s, AOS_BI_SIGNAL, 1);
@@ -170,9 +177,13 @@ int OnInit() {
     ea.gridMaxLvl = GridMaxLvl;
     ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;
     ea.slippage = Slippage;
+    ea.news = News;
+    ea.newsImportance = NewsImportance;
+    ea.newsMinsBefore = NewsMinsBefore;
+    ea.newsMinsAfter = NewsMinsAfter;
 
-    FillSymbols();
-
+    if (News) fetchCalendarFromYear(NewsStartYear);
+    fillSymbols(symbols, MultipleSymbol, Symbols);
     EventSetTimer(TimerInterval);
 
     return INIT_SUCCEEDED;
@@ -199,77 +210,4 @@ void OnTimer() {
     CheckForSignal();
 }
 
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
-void FillSymbols() {
-    if (!MultipleSymbol) {
-        ArrayResize(symbols, 1);
-        symbols[0] = _Symbol;
-        return;
-    }
-
-    string sbls[];
-    int n = StringSplit(Symbols, ',', sbls);
-    if (n > 0) {
-        int k = 0;
-        string postfix = StringLen(_Symbol) > 6 ? StringSubstr(_Symbol, 6) : "";
-        for (int i = 0; i < n; i++) {
-            string symbol = Trim(sbls[i]) + postfix;
-            bool b = false;
-            if (!SymbolExist(symbol, b)) continue;
-            ArrayResize(symbols, k + 1);
-            symbols[k] = symbol;
-            k++;
-        }
-        return;
-    }
-
-    string curs[] = {"EUR", "USD", "JPY", "CHF", "AUD", "GBP", "CAD", "NZD", "SGD"};
-    n = ArraySize(curs);
-    int k = 0;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            if (i == j) continue;
-            string postfix = StringLen(_Symbol) > 6 ? StringSubstr(_Symbol, 6) : "";
-            string symbol = curs[i] + curs[j] + postfix;
-            bool b = false;
-            if (!SymbolExist(symbol, b)) continue;
-            ArrayResize(symbols, k + 1);
-            symbols[k] = symbol;
-            k++;
-        }
-    }
-}
-
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
-bool RecentlyHadPos(string symbol) {
-    if (!HistorySelect(TimeCurrent() - 20 * PeriodSeconds(PERIOD_D1), TimeCurrent())) {
-        int err = GetLastError();
-        PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-        return false;
-    }
-    int totalDeals = HistoryDealsTotal();
-    for (int i = totalDeals - 1; i >= 0; i--) {
-        ulong ticket = HistoryDealGetTicket(i);
-        if (HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
-        if (HistoryDealGetInteger(ticket, DEAL_MAGIC) != ea.GetMagic()) continue;
-        if (HistoryDealGetString(ticket, DEAL_SYMBOL) != symbol) continue;
-        datetime dealTime = (datetime) HistoryDealGetInteger(ticket, DEAL_TIME);
-        if (TimeCurrent() < dealTime + MinPosInterval * PeriodSeconds(PERIOD_CURRENT)) return true;
-    }
-    return false;
-}
-
-//+------------------------------------------------------------------+
-//|                                                                  |
-//+------------------------------------------------------------------+
-string Trim(string s) {
-    string str = s + " ";
-    StringTrimLeft(str);
-    StringTrimRight(str);
-    return str;
-}
 //+------------------------------------------------------------------+

@@ -5,9 +5,18 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.11"
+#property version   "1.12"
 
 #include <errordescription.mqh>
+
+#define DIR "Geraked\\"
+
+enum ENUM_NEWS_IMPORTANCE {
+    NEWS_IMPORTANCE_NONE, // None
+    NEWS_IMPORTANCE_LOW, // Low
+    NEWS_IMPORTANCE_MEDIUM, // Medium
+    NEWS_IMPORTANCE_HIGH // High
+};
 
 class GerEA {
 private:
@@ -26,6 +35,10 @@ public:
     double gridTrailingStopLevel;
     int gridMaxLvl;
     double equityDrawdownLimit;
+    bool news;
+    ENUM_NEWS_IMPORTANCE newsImportance;
+    int newsMinsBefore;
+    int newsMinsAfter;    
 
     GerEA() {
         risk = 0.01;
@@ -40,6 +53,10 @@ public:
         gridTrailingStopLevel = 0;
         gridMaxLvl = 20;
         equityDrawdownLimit = 0;
+        news = false;
+        newsImportance = NEWS_IMPORTANCE_MEDIUM;
+        newsMinsBefore = 60;
+        newsMinsAfter = 60;
     }
 
     void Init(int magicSeed = 1) {
@@ -49,14 +66,14 @@ public:
 
     bool BuyOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
-            return order(ORDER_TYPE_BUY, magicNumber, Ask(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry);
-        return order(ORDER_TYPE_SELL, magicNumber, Bid(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry);
+            return order(ORDER_TYPE_BUY, magicNumber, Ask(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
+        return order(ORDER_TYPE_SELL, magicNumber, Bid(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
     }
 
     bool SellOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
-            return order(ORDER_TYPE_SELL, magicNumber, Bid(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry);
-        return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry);
+            return order(ORDER_TYPE_SELL, magicNumber, Bid(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
+        return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
     }
 
     void BuyClose(string name = NULL) {
@@ -240,7 +257,15 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 3, int mRetry = 2000) {
+bool IsFillingTypeAllowed(string symbol, ENUM_ORDER_TYPE_FILLING fill_type) {
+    int filling = (int) SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
+    return((filling & fill_type) == fill_type);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60) {
     name = name == NULL ? _Symbol : name;
     int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
     int err;
@@ -267,6 +292,11 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
         return false;
     }
 
+    if (news) {
+        if (hasSymbolNews(name, newsImportance, newsMinsBefore, newsMinsAfter))
+            return false;
+    }
+
     if (comment == "" && positionsTotalMagic(magic, name) == 0)
         comment = sl ? DoubleToString(MathAbs(in - sl), digits) : tp ? DoubleToString(MathAbs(in - tp), digits) : "";
 
@@ -289,6 +319,12 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
     req.deviation = slippage;
     req.magic = magic;
     req.comment = comment;
+
+    if (IsFillingTypeAllowed(name, ORDER_FILLING_FOK)) {
+        req.type_filling = ORDER_FILLING_FOK;
+    } else if (IsFillingTypeAllowed(name, ORDER_FILLING_IOC)) {
+        req.type_filling = ORDER_FILLING_IOC;
+    }
 
     int cnt = 1;
     do {
@@ -377,6 +413,12 @@ bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 20
     req.volume = pvolume;
     req.deviation = slippage;
     req.magic = pmagic;
+
+    if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_FOK)) {
+        req.type_filling = ORDER_FILLING_FOK;
+    } else if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_IOC)) {
+        req.type_filling = ORDER_FILLING_IOC;
+    }
 
     if (ptype == POSITION_TYPE_BUY) {
         req.price = Bid(psymbol);
@@ -929,6 +971,453 @@ void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3
 
     closeOrders(POSITION_TYPE_BUY, magic, slippage, max_symbol, nRetry, mRetry);
     closeOrders(POSITION_TYPE_SELL, magic, slippage, max_symbol, nRetry, mRetry);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void fillSymbols(string &arr[], bool multiple_symbols, string symbols_str = "", string currencies_str = "EUR, USD, JPY, CHF, AUD, GBP, CAD, NZD, SGD") {
+    if (!multiple_symbols) {
+        ArrayResize(arr, 1);
+        arr[0] = _Symbol;
+        return;
+    }
+
+    string sbls[];
+    int n = StringSplit(symbols_str, ',', sbls);
+    if (n > 0) {
+        int k = 0;
+        string postfix = StringLen(_Symbol) > 6 ? StringSubstr(_Symbol, 6) : "";
+        for (int i = 0; i < n; i++) {
+            string symbol = Trim(sbls[i]) + postfix;
+            bool b = false;
+            if (!SymbolExist(symbol, b)) continue;
+            ArrayResize(arr, k + 1);
+            arr[k] = symbol;
+            k++;
+        }
+        return;
+    }
+
+    string curs[];
+    n = StringSplit(currencies_str, ',', curs);
+    int k = 0;
+    string postfix = StringLen(_Symbol) > 6 ? StringSubstr(_Symbol, 6) : "";
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (i == j) continue;
+            string symbol = Trim(curs[i]) + Trim(curs[j]) + postfix;
+            bool b = false;
+            if (!SymbolExist(symbol, b)) continue;
+            ArrayResize(arr, k + 1);
+            arr[k] = symbol;
+            k++;
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool hasDealRecently(ulong magic, string symbol, int nCandles) {
+    if (!HistorySelect(TimeCurrent() - 2 * (nCandles + 1) * PeriodSeconds(PERIOD_CURRENT), TimeCurrent())) {
+        int err = GetLastError();
+        PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        return false;
+    }
+    int totalDeals = HistoryDealsTotal();
+    for (int i = totalDeals - 1; i >= 0; i--) {
+        ulong ticket = HistoryDealGetTicket(i);
+        if (HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
+        if (HistoryDealGetInteger(ticket, DEAL_MAGIC) != magic) continue;
+        if (HistoryDealGetString(ticket, DEAL_SYMBOL) != symbol) continue;
+        datetime dealTime = (datetime) HistoryDealGetInteger(ticket, DEAL_TIME);
+        if (TimeCurrent() < dealTime + nCandles * PeriodSeconds(PERIOD_CURRENT)) return true;
+    }
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+string Trim(string s) {
+    string str = s + " ";
+    StringTrimLeft(str);
+    StringTrimRight(str);
+    return str;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+string getCalendarDbPath() {
+    return DIR + "calendar-" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + ".db";
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void fetchCalendarFromYear(int year) {
+    if (year == 0) return;
+    MqlDateTime Tcs;
+    TimeCurrent(Tcs);
+    for (int i = Tcs.year; i >= year; i--)
+        fetchCalendar(i);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool fetchCalendar(int year) {
+    const int Max_Retry = 4;
+
+    if (MQLInfoInteger(MQL_TESTER)) return true;
+    if (year == 0) return true;
+    if (year < 2010) {
+        Print("Fetching News data older than year 2010 is not allowed!");
+        return false;
+    }
+
+    MqlDateTime Tcs;
+    datetime Tc = TimeCurrent();
+    TimeToStruct(Tc, Tcs);
+    if (year > Tcs.year) return false;
+
+    PrintFormat("Fetching News data for year %d...", year);
+
+    datetime date_from = StringToTime(IntegerToString(year) + ".01.01");
+    datetime date_to = StringToTime(IntegerToString(year + 1) + ".01.01");
+    if (year == Tcs.year) date_to = Tc + PeriodSeconds(PERIOD_D1);
+
+    MqlCalendarCountry countries[];
+    int n = 0;
+    int iter = 0;
+    int err;
+    do {
+        iter++;
+        ResetLastError();
+        n = CalendarCountries(countries);
+        err = GetLastError();
+        if (n > 0) break;
+        if (err != ERR_CALENDAR_TIMEOUT || iter == Max_Retry) {
+            PrintFormat("%s error #%d (CalendarCountries) : %s", __FUNCTION__, err, ErrorDescription(err));
+            return false;
+        }
+    } while(err == ERR_CALENDAR_TIMEOUT);
+
+    int db, dp, t;
+    string sql;
+
+    db = DatabaseOpen(getCalendarDbPath(), DATABASE_OPEN_READWRITE | DATABASE_OPEN_CREATE | DATABASE_OPEN_COMMON);
+    if (db == INVALID_HANDLE) {
+        err = GetLastError();
+        PrintFormat("%s error (DatabaseOpen) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        return false;
+    }
+
+    if (!DatabaseTableExists(db, "country")) {
+        sql = "CREATE TABLE country ("
+              "id INT,"
+              "name TEXT,"
+              "code TEXT,"
+              "currency TEXT,"
+              "currency_symbol TEXT,"
+              "url_name TEXT,"
+              "PRIMARY KEY(id)"
+              ");"
+              ;
+
+        if (!DatabaseExecute(db, sql)) {
+            err = GetLastError();
+            PrintFormat("%s error (table: country) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+            DatabaseClose(db);
+            return false;
+        }
+    }
+
+    if (!DatabaseTableExists(db, "event")) {
+        sql = "CREATE TABLE event ("
+              "id INT,"
+              "type INT,"
+              "sector INT,"
+              "frequency INT,"
+              "time_mode INT,"
+              "country_id INT,"
+              "unit INT,"
+              "importance INT,"
+              "multiplier INT,"
+              "digits INT,"
+              "source_url TEXT,"
+              "event_code TEXT,"
+              "name TEXT,"
+              "FOREIGN KEY(country_id) REFERENCES country(id),"
+              "PRIMARY KEY(id)"
+              ");"
+              ;
+
+        if (!DatabaseExecute(db, sql)) {
+            err = GetLastError();
+            PrintFormat("%s error (table: event) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+            DatabaseClose(db);
+            return false;
+        }
+    }
+
+    if (!DatabaseTableExists(db, "value")) {
+        sql = "CREATE TABLE value ("
+              "id INT,"
+              "event_id INT,"
+              "time INT,"
+              "period INT,"
+              "revision INT,"
+              "actual_value INT,"
+              "prev_value INT,"
+              "revised_prev_value INT,"
+              "forecast_value INT,"
+              "impact_type INT,"
+              "FOREIGN KEY(event_id) REFERENCES event(id),"
+              "PRIMARY KEY(id)"
+              ");"
+              ;
+
+        if (!DatabaseExecute(db, sql)) {
+            err = GetLastError();
+            PrintFormat("%s error (table: value) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+            DatabaseClose(db);
+            return false;
+        }
+    }
+
+    sql = "CREATE VIEW IF NOT EXISTS main AS "
+          "SELECT v.id, event_id, time, period, revision, actual_value, prev_value, revised_prev_value, forecast_value, impact_type, "
+          "type, sector, frequency, time_mode, country_id, unit, importance, multiplier, digits, source_url, event_code, e.name, "
+          "c.name AS cname, code, currency, currency_symbol, url_name "
+          "FROM value v "
+          "JOIN event e ON e.id = v.event_id "
+          "JOIN country c ON c.id = e.country_id "
+          "ORDER BY time DESC "
+          ";";
+
+    if (!DatabaseExecute(db, sql)) {
+        err = GetLastError();
+        PrintFormat("%s error (view) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        DatabaseClose(db);
+        return false;
+    }
+
+    for (int i = 0; i < n; i++) {
+        if (IsStopped()) {
+            DatabaseClose(db);
+            PrintFormat("%s (loop: countries) stopped!", __FUNCTION__);
+            return false;
+        }
+
+        sql = StringFormat("SELECT count(*) FROM country WHERE id=%d LIMIT 1", countries[i].id);
+        dp = DatabasePrepare(db, sql);
+        DatabaseRead(dp);
+        DatabaseColumnInteger(dp, 0, t);
+
+        if (!t) {
+            StringReplace(countries[i].name, "'", "''");
+            StringReplace(countries[i].code, "'", "''");
+            StringReplace(countries[i].currency, "'", "''");
+            StringReplace(countries[i].currency_symbol, "'", "''");
+            StringReplace(countries[i].url_name, "'", "''");
+
+            sql = "INSERT INTO country(id, name, code, currency, currency_symbol, url_name) VALUES("
+                  + StringFormat("%d, '%s', '%s', '%s', '%s', '%s'", countries[i].id, countries[i].name, countries[i].code, countries[i].currency, countries[i].currency_symbol, countries[i].url_name) +
+                  ")"
+                  ";";
+
+            if (!DatabaseExecute(db, sql)) {
+                err = GetLastError();
+                PrintFormat("%s error (insert: country) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                continue;
+            }
+        }
+
+        MqlCalendarValue values[];
+        int m = 0;
+        iter = 0;
+        do {
+            iter++;
+            ResetLastError();
+            m = CalendarValueHistory(values, date_from, date_to, countries[i].code);
+            err = GetLastError();
+            if (m > -1) break;
+            if (err != ERR_CALENDAR_TIMEOUT || iter == Max_Retry) {
+                PrintFormat("%s error #%d (CalendarValueHistory) : %s, country: %s", __FUNCTION__, err, ErrorDescription(err), countries[i].code);
+                DatabaseClose(db);
+                return false;
+            }
+        } while(err == ERR_CALENDAR_TIMEOUT);
+
+        for (int j = 0; j < m; j++) {
+            if (IsStopped()) {
+                DatabaseClose(db);
+                PrintFormat("%s (loop: values) stopped!", __FUNCTION__);
+                return false;
+            }
+
+            sql = StringFormat("SELECT count(*) FROM value WHERE id=%d LIMIT 1", values[j].id);
+            dp = DatabasePrepare(db, sql);
+            DatabaseRead(dp);
+            DatabaseColumnInteger(dp, 0, t);
+            if (t) {
+                if (year == Tcs.year) {
+                    sql = "UPDATE value SET " +
+                          StringFormat("event_id=%d, time=%d, period=%d, revision=%d, actual_value=%d, prev_value=%d, revised_prev_value=%d, forecast_value=%d, impact_type=%d ", values[j].event_id, values[j].time, values[j].period, values[j].revision, values[j].actual_value, values[j].prev_value, values[j].revised_prev_value, values[j].forecast_value, values[j].impact_type) +
+                          StringFormat("WHERE id=%d ", values[j].id) +
+                          ";";
+
+                    if (!DatabaseExecute(db, sql)) {
+                        err = GetLastError();
+                        PrintFormat("%s error (update: value) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                    }
+                }
+                continue;
+            }
+
+            MqlCalendarEvent event;
+            if (!CalendarEventById(values[j].event_id, event)) {
+                err = GetLastError();
+                PrintFormat("%s (CalendarEventById) error #%d : %s, country: %s", __FUNCTION__, err, ErrorDescription(err), countries[i].code);
+                continue;
+            }
+
+            sql = StringFormat("SELECT count(*) FROM event WHERE id=%d LIMIT 1", event.id);
+            dp = DatabasePrepare(db, sql);
+            DatabaseRead(dp);
+            DatabaseColumnInteger(dp, 0, t);
+
+            if (!t) {
+                StringReplace(event.source_url, "'", "''");
+                StringReplace(event.event_code, "'", "''");
+                StringReplace(event.name, "'", "''");
+
+                sql = "INSERT INTO `event`(id, type, sector, frequency, time_mode, country_id, unit, importance, multiplier, digits, source_url, event_code, name) VALUES("
+                      + StringFormat("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, '%s', '%s', '%s'", event.id, event.type, event.sector, event.frequency, event.time_mode, event.country_id, event.unit, event.importance, event.multiplier, event.digits, event.source_url, event.event_code, event.name) +
+                      ")"
+                      ";";
+
+                if (!DatabaseExecute(db, sql)) {
+                    err = GetLastError();
+                    PrintFormat("%s error (insert: event) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                    Print(sql);
+                    continue;
+                }
+            }
+
+            sql = "INSERT INTO value(id, event_id, time, period, revision, actual_value, prev_value, revised_prev_value, forecast_value, impact_type) VALUES("
+                  + StringFormat("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d", values[j].id, values[j].event_id, values[j].time, values[j].period, values[j].revision, values[j].actual_value, values[j].prev_value, values[j].revised_prev_value, values[j].forecast_value, values[j].impact_type) +
+                  ")"
+                  ";";
+
+            if (!DatabaseExecute(db, sql)) {
+                err = GetLastError();
+                PrintFormat("%s error (insert: value) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                continue;
+            }
+        }
+    }
+
+    DatabaseClose(db);
+    Print("Done!");
+    return true;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool hasSymbolNews(string symbol, ENUM_NEWS_IMPORTANCE importance, int minsBefore, int minsAfter) {
+    string cur1 = StringSubstr(symbol, 0, 3);
+    string cur2 = StringSubstr(symbol, 3, 3);
+    bool hcn1 = hasCurrencyNews(cur1, importance, minsBefore, minsAfter);
+    bool hcn2 = hasCurrencyNews(cur2, importance, minsBefore, minsAfter);
+    if (hcn1 || hcn2) return true;
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool hasCurrencyNews(string currency, ENUM_NEWS_IMPORTANCE importance, int minsBefore, int minsAfter) {
+    const int Max_Retry = 4;
+
+    int p = 2 * (minsBefore + minsAfter + 1) * PeriodSeconds(PERIOD_M1);
+    datetime Tc = TimeCurrent();
+    datetime date_from = Tc - p;
+    datetime date_to = Tc + p;
+
+    if (!MQLInfoInteger(MQL_TESTER)) {
+        MqlCalendarValue values[];
+        int n = 0;
+        int iter = 0;
+        int err;
+        do {
+            iter++;
+            ResetLastError();
+            n = CalendarValueHistory(values, date_from, date_to, NULL, currency);
+            err = GetLastError();
+            if (n > -1) break;
+            if (err != ERR_CALENDAR_TIMEOUT || iter == Max_Retry) {
+                PrintFormat("%s error #%d (CalendarValueHistory) : %s, currency: %s", __FUNCTION__, err, ErrorDescription(err), currency);
+                return false;
+            }
+        } while(err == ERR_CALENDAR_TIMEOUT);
+
+        for (int i = 0; i < n; i++) {
+            MqlCalendarEvent event;
+            if (!CalendarEventById(values[i].event_id, event)) {
+                err = GetLastError();
+                PrintFormat("%s error #%d : %s, currency: %s", __FUNCTION__, err, ErrorDescription(err), currency);
+                continue;
+            }
+
+            datetime t = values[i].time;
+            datetime tb = t - minsBefore * PeriodSeconds(PERIOD_M1);
+            datetime te = t + minsAfter * PeriodSeconds(PERIOD_M1);
+            if (!(Tc > tb && Tc < te)) continue;
+            if (event.importance >= (int) importance) return true;
+        }
+
+        return false;
+    }
+
+    if (!FileIsExist(getCalendarDbPath(), FILE_COMMON)) return false;
+
+    int db, dp;
+    string sql;
+
+    db = DatabaseOpen(getCalendarDbPath(), DATABASE_OPEN_READONLY | DATABASE_OPEN_COMMON);
+    if (db == INVALID_HANDLE) {
+        int err = GetLastError();
+        PrintFormat("%s error (DatabaseOpen) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        return false;
+    }
+
+    sql = StringFormat("SELECT time_mode, time, importance FROM main WHERE currency='%s' COLLATE NOCASE AND time >= %d AND time < %d ORDER BY time DESC", currency, date_from, date_to);
+    dp = DatabasePrepare(db, sql);
+
+    while (DatabaseRead(dp) && !IsStopped()) {
+        int time_mode, time, imp;
+        DatabaseColumnInteger(dp, 0, time_mode);
+        DatabaseColumnInteger(dp, 1, time);
+        DatabaseColumnInteger(dp, 2, imp);
+        datetime t = (datetime) time;
+
+        datetime tb = t - minsBefore * PeriodSeconds(PERIOD_M1);
+        datetime te = t + minsAfter * PeriodSeconds(PERIOD_M1);
+        if (!(Tc > tb && Tc < te)) continue;
+
+        if (imp >= (int) importance) {
+            DatabaseClose(db);
+            return true;
+        }
+    }
+
+    DatabaseClose(db);
+    return false;
 }
 
 //+------------------------------------------------------------------+
