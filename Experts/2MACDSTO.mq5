@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.1"
+#property version     "1.2"
 #property description "A strategy using two MACDs and Stochastic Oscillator"
 #property description "NZDUSD-3H  2020.01.01 - 2023.10.08"
 
@@ -57,6 +57,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 30; // Timer Interval (Seconds)
 input ulong MagicNumber = 6000; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 int BuffSize = 4; // Buffer Size
 
@@ -123,6 +124,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
 

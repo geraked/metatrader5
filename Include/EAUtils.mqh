@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.12"
+#property version   "1.13"
 
 #include <errordescription.mqh>
 
@@ -16,6 +16,14 @@ enum ENUM_NEWS_IMPORTANCE {
     NEWS_IMPORTANCE_LOW, // Low
     NEWS_IMPORTANCE_MEDIUM, // Medium
     NEWS_IMPORTANCE_HIGH // High
+};
+
+enum ENUM_FILLING {
+    FILLING_DEFAULT, // Default
+    FILLING_FOK, // FOK
+    FILLING_IOK, // IOK
+    FILLING_BOC, // BOC
+    FILLING_RETURN // RETURN
 };
 
 class GerEA {
@@ -38,7 +46,8 @@ public:
     bool news;
     ENUM_NEWS_IMPORTANCE newsImportance;
     int newsMinsBefore;
-    int newsMinsAfter;    
+    int newsMinsAfter;
+    ENUM_FILLING filling;   
 
     GerEA() {
         risk = 0.01;
@@ -57,6 +66,7 @@ public:
         newsImportance = NEWS_IMPORTANCE_MEDIUM;
         newsMinsBefore = 60;
         newsMinsAfter = 60;
+        filling = FILLING_DEFAULT;
     }
 
     void Init(int magicSeed = 1) {
@@ -66,32 +76,32 @@ public:
 
     bool BuyOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
-            return order(ORDER_TYPE_BUY, magicNumber, Ask(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
-        return order(ORDER_TYPE_SELL, magicNumber, Bid(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
+            return order(ORDER_TYPE_BUY, magicNumber, Ask(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+        return order(ORDER_TYPE_SELL, magicNumber, Bid(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
     }
 
     bool SellOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
-            return order(ORDER_TYPE_SELL, magicNumber, Bid(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
-        return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter);
+            return order(ORDER_TYPE_SELL, magicNumber, Bid(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+        return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
     }
 
     void BuyClose(string name = NULL) {
         if (!reverse)
-            closeOrders(POSITION_TYPE_BUY, magicNumber, slippage, name, nRetry, mRetry);
+            closeOrders(POSITION_TYPE_BUY, magicNumber, slippage, name, nRetry, mRetry, filling);
         else
-            closeOrders(POSITION_TYPE_SELL, magicNumber, slippage, name, nRetry, mRetry);
+            closeOrders(POSITION_TYPE_SELL, magicNumber, slippage, name, nRetry, mRetry, filling);
     }
 
     void SellClose(string name = NULL) {
         if (!reverse)
-            closeOrders(POSITION_TYPE_SELL, magicNumber, slippage, name, nRetry, mRetry);
+            closeOrders(POSITION_TYPE_SELL, magicNumber, slippage, name, nRetry, mRetry, filling);
         else
-            closeOrders(POSITION_TYPE_BUY, magicNumber, slippage, name, nRetry, mRetry);
+            closeOrders(POSITION_TYPE_BUY, magicNumber, slippage, name, nRetry, mRetry, filling);
     }
 
     bool PosClose(ulong ticket) {
-        return closeOrder(ticket, slippage, nRetry, mRetry);
+        return closeOrder(ticket, slippage, nRetry, mRetry, filling);
     }
 
     bool IsAuthorized() {
@@ -115,11 +125,11 @@ public:
     }
 
     void CheckForGrid() {
-        checkForGrid(magicNumber, risk, gridVolMult, gridMaxLvl, slippage, nRetry, mRetry);
+        checkForGrid(magicNumber, risk, gridVolMult, gridMaxLvl, slippage, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
     }
 
     void CheckForEquity() {
-        checkForEquity(magicNumber, equityDrawdownLimit, slippage, nRetry, mRetry);
+        checkForEquity(magicNumber, equityDrawdownLimit, slippage, nRetry, mRetry, filling);
     }
 };
 
@@ -265,7 +275,7 @@ bool IsFillingTypeAllowed(string symbol, ENUM_ORDER_TYPE_FILLING fill_type) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60) {
+bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT) {
     name = name == NULL ? _Symbol : name;
     int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
     int err;
@@ -320,11 +330,16 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
     req.magic = magic;
     req.comment = comment;
 
-    if (IsFillingTypeAllowed(name, ORDER_FILLING_FOK)) {
-        req.type_filling = ORDER_FILLING_FOK;
-    } else if (IsFillingTypeAllowed(name, ORDER_FILLING_IOC)) {
-        req.type_filling = ORDER_FILLING_IOC;
-    }
+    if (filling == FILLING_DEFAULT) {
+        if (IsFillingTypeAllowed(name, ORDER_FILLING_FOK)) {
+            req.type_filling = ORDER_FILLING_FOK;
+        } else if (IsFillingTypeAllowed(name, ORDER_FILLING_IOC)) {
+            req.type_filling = ORDER_FILLING_IOC;
+        }
+    } else if (filling == FILLING_FOK) req.type_filling = ORDER_FILLING_FOK;
+    else if (filling == FILLING_IOK) req.type_filling = ORDER_FILLING_IOC;
+    else if (filling == FILLING_BOC) req.type_filling = ORDER_FILLING_BOC;
+    else if (filling == FILLING_RETURN) req.type_filling = ORDER_FILLING_RETURN;
 
     int cnt = 1;
     do {
@@ -373,7 +388,7 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string name = NULL, int nRetry = 3, int mRetry = 2000) {
+void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string name = NULL, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     int total = PositionsTotal();
     for (int i = total - 1; i >= 0; i--) {
         ulong pticket = PositionGetTicket(i);
@@ -383,14 +398,14 @@ void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string n
         if (pmagic != magic) continue;
         if (ptype != pt) continue;
         if (name != NULL && psymbol != name) continue;
-        closeOrder(pticket, slippage, nRetry, mRetry);
+        closeOrder(pticket, slippage, nRetry, mRetry, filling);
     }
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 2000) {
+bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     int err;
 
     if (!PositionSelectByTicket(ticket)) {
@@ -414,11 +429,16 @@ bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 20
     req.deviation = slippage;
     req.magic = pmagic;
 
-    if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_FOK)) {
-        req.type_filling = ORDER_FILLING_FOK;
-    } else if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_IOC)) {
-        req.type_filling = ORDER_FILLING_IOC;
-    }
+    if (filling == FILLING_DEFAULT) {
+        if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_FOK)) {
+            req.type_filling = ORDER_FILLING_FOK;
+        } else if (IsFillingTypeAllowed(psymbol, ORDER_FILLING_IOC)) {
+            req.type_filling = ORDER_FILLING_IOC;
+        }
+    } else if (filling == FILLING_FOK) req.type_filling = ORDER_FILLING_FOK;
+    else if (filling == FILLING_IOK) req.type_filling = ORDER_FILLING_IOC;
+    else if (filling == FILLING_BOC) req.type_filling = ORDER_FILLING_BOC;
+    else if (filling == FILLING_RETURN) req.type_filling = ORDER_FILLING_RETURN;
 
     if (ptype == POSITION_TYPE_BUY) {
         req.price = Bid(psymbol);
@@ -832,7 +852,7 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slippage = 30, int nRetry = 3, int mRetry = 2000) {
+void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slippage = 30, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT) {
     int minPoints = 30;
     int total = PositionsTotal();
     for (int i = total - 1; i >= 0; i--) {
@@ -852,7 +872,6 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
         if (pmagic != magic) continue;
         if (pd == 0) continue;
         if (pstm == SYMBOL_TRADE_MODE_DISABLED || pstm == SYMBOL_TRADE_MODE_CLOSEONLY) continue;
-        //if (TimeCurrent() - SymbolInfoInteger(psymbol, SYMBOL_TIME) > PeriodSeconds(PERIOD_M1)) continue;
 
         ulong tickets[];
         int n = positionsTickets(pmagic, tickets, psymbol);
@@ -888,7 +907,7 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
             if (!(tp - Bid(psymbol) >= minPoints * ppoint))
                 tp = Bid(psymbol) + minPoints * ppoint;
 
-            if (!order(ORDER_TYPE_BUY, pmagic, Ask(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry)) continue;
+            if (!order(ORDER_TYPE_BUY, pmagic, Ask(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling)) continue;
 
             for (int j = 0; j < n; j++) {
                 PositionSelectByTicket(tickets[j]);
@@ -919,7 +938,7 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
             if (!(Ask(psymbol) - tp >= minPoints * ppoint))
                 tp = Ask(psymbol) - minPoints * ppoint;
 
-            if (!order(ORDER_TYPE_SELL, pmagic, Bid(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry)) continue;
+            if (!order(ORDER_TYPE_SELL, pmagic, Bid(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling)) continue;
 
             for (int j = 0; j < n; j++) {
                 PositionSelectByTicket(tickets[j]);
@@ -946,7 +965,7 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3, int mRetry = 2000) {
+void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     if (limit == 0) return;
 
     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -969,8 +988,8 @@ void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3
         }
     }
 
-    closeOrders(POSITION_TYPE_BUY, magic, slippage, max_symbol, nRetry, mRetry);
-    closeOrders(POSITION_TYPE_SELL, magic, slippage, max_symbol, nRetry, mRetry);
+    closeOrders(POSITION_TYPE_BUY, magic, slippage, max_symbol, nRetry, mRetry, filling);
+    closeOrders(POSITION_TYPE_SELL, magic, slippage, max_symbol, nRetry, mRetry, filling);
 }
 
 //+------------------------------------------------------------------+

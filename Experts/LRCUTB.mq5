@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.1"
+#property version     "1.2"
 #property description "A strategy using Linear Regression Candles and UT Bot Alerts"
 #property description "AUDCAD-15M  2019.01.01 - 2023.10.30"
 
@@ -54,6 +54,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 30; // Timer Interval (Seconds)
 input ulong MagicNumber = 1003; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 GerEA ea;
 datetime lastCandle;
@@ -161,6 +162,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
 

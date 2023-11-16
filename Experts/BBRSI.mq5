@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using Bollinger Bands and RSI"
 #property description "XAUUSD-5M  2021.02.26 - 2023.09.15"
 
@@ -54,6 +54,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 30; // Timer Interval (Seconds)
 input ulong MagicNumber = 1000; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 GerEA ea;
 datetime lastCandle;
@@ -137,6 +138,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
 

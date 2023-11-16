@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.1"
+#property version     "1.2"
 #property description "A strategy using two Moving Averages and Andean Oscillator"
 #property description "Multiple Symbols(EURUSD, EURCAD, USDCAD)-4H  2019.01.01 - 2023.10.17"
 
@@ -68,6 +68,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 120; // Timer Interval (Seconds)
 input ulong MagicNumber = 1000; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 GerEA ea;
 datetime tc;
@@ -181,6 +182,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
     fillSymbols(symbols, MultipleSymbol, Symbols);

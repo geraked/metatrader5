@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.0"
+#property version     "1.1"
 #property description "A strategy using Linear Regression Candles and MACD"
 #property description "https://youtu.be/je6vGA30gcQ"
 
@@ -57,6 +57,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 30; // Timer Interval (Seconds)
 input ulong MagicNumber = 1000; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 GerEA ea;
 datetime tc;
@@ -238,6 +239,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
     fillSymbols(symbols, MultipleSymbol, Symbols);

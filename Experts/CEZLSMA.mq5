@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A Strategy Using Chandelier Exit and ZLSMA Indicators Based on the Heikin Ashi Candles"
 #property description "AUDUSD-15M  2019.01.01 - 2023.08.01"
 
@@ -51,6 +51,7 @@ input group "Auxiliary"
 input int Slippage = 30; // Slippage (Points)
 input int TimerInterval = 30; // Timer Interval (Seconds)
 input ulong MagicNumber = 2000; // Magic Number
+input ENUM_FILLING Filling = FILLING_DEFAULT; // Order Filling
 
 int BuffSize = 4;
 
@@ -143,6 +144,7 @@ int OnInit() {
     ea.newsImportance = NewsImportance;
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
+    ea.filling = Filling;
 
     if (News) fetchCalendarFromYear(NewsStartYear);
 
