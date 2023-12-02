@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.13"
+#property version   "1.14"
 
 #include <errordescription.mqh>
 
@@ -995,7 +995,7 @@ void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void fillSymbols(string &arr[], bool multiple_symbols, string symbols_str = "", string currencies_str = "EUR, USD, JPY, CHF, AUD, GBP, CAD, NZD, SGD") {
+void fillSymbols(string &arr[], bool multiple_symbols, string symbols_str = "", string currencies_str = "EUR, USD, JPY, CHF, AUD, GBP, CAD, NZD") {
     if (!multiple_symbols) {
         ArrayResize(arr, 1);
         arr[0] = _Symbol;
@@ -1197,6 +1197,7 @@ bool fetchCalendar(int year) {
               "FOREIGN KEY(event_id) REFERENCES event(id),"
               "PRIMARY KEY(id)"
               ");"
+              "CREATE INDEX idx_value_1 ON value(time);"
               ;
 
         if (!DatabaseExecute(db, sql)) {
@@ -1224,10 +1225,18 @@ bool fetchCalendar(int year) {
         return false;
     }
 
+    if (!DatabaseTransactionBegin(db)) {
+        err = GetLastError();
+        PrintFormat("%s error (DatabaseTransactionBegin) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        DatabaseClose(db);
+        return false;
+    }
+
     for (int i = 0; i < n; i++) {
         if (IsStopped()) {
-            DatabaseClose(db);
             PrintFormat("%s (loop: countries) stopped!", __FUNCTION__);
+            DatabaseTransactionRollback(db);
+            DatabaseClose(db);
             return false;
         }
 
@@ -1235,6 +1244,7 @@ bool fetchCalendar(int year) {
         dp = DatabasePrepare(db, sql);
         DatabaseRead(dp);
         DatabaseColumnInteger(dp, 0, t);
+        DatabaseFinalize(dp);
 
         if (!t) {
             StringReplace(countries[i].name, "'", "''");
@@ -1251,7 +1261,9 @@ bool fetchCalendar(int year) {
             if (!DatabaseExecute(db, sql)) {
                 err = GetLastError();
                 PrintFormat("%s error (insert: country) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                continue;
+                DatabaseTransactionRollback(db);
+                DatabaseClose(db);
+                return false;
             }
         }
 
@@ -1266,6 +1278,7 @@ bool fetchCalendar(int year) {
             if (m > -1) break;
             if (err != ERR_CALENDAR_TIMEOUT || iter == Max_Retry) {
                 PrintFormat("%s error #%d (CalendarValueHistory) : %s, country: %s", __FUNCTION__, err, ErrorDescription(err), countries[i].code);
+                DatabaseTransactionRollback(db);
                 DatabaseClose(db);
                 return false;
             }
@@ -1273,8 +1286,9 @@ bool fetchCalendar(int year) {
 
         for (int j = 0; j < m; j++) {
             if (IsStopped()) {
-                DatabaseClose(db);
                 PrintFormat("%s (loop: values) stopped!", __FUNCTION__);
+                DatabaseTransactionRollback(db);
+                DatabaseClose(db);
                 return false;
             }
 
@@ -1282,6 +1296,7 @@ bool fetchCalendar(int year) {
             dp = DatabasePrepare(db, sql);
             DatabaseRead(dp);
             DatabaseColumnInteger(dp, 0, t);
+            DatabaseFinalize(dp);
             if (t) {
                 if (year == Tcs.year) {
                     sql = "UPDATE value SET " +
@@ -1292,6 +1307,9 @@ bool fetchCalendar(int year) {
                     if (!DatabaseExecute(db, sql)) {
                         err = GetLastError();
                         PrintFormat("%s error (update: value) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                        DatabaseTransactionRollback(db);
+                        DatabaseClose(db);
+                        return false;
                     }
                 }
                 continue;
@@ -1308,6 +1326,7 @@ bool fetchCalendar(int year) {
             dp = DatabasePrepare(db, sql);
             DatabaseRead(dp);
             DatabaseColumnInteger(dp, 0, t);
+            DatabaseFinalize(dp);
 
             if (!t) {
                 StringReplace(event.source_url, "'", "''");
@@ -1322,8 +1341,9 @@ bool fetchCalendar(int year) {
                 if (!DatabaseExecute(db, sql)) {
                     err = GetLastError();
                     PrintFormat("%s error (insert: event) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                    Print(sql);
-                    continue;
+                    DatabaseTransactionRollback(db);
+                    DatabaseClose(db);
+                    return false;
                 }
             }
 
@@ -1335,9 +1355,18 @@ bool fetchCalendar(int year) {
             if (!DatabaseExecute(db, sql)) {
                 err = GetLastError();
                 PrintFormat("%s error (insert: value) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                continue;
+                DatabaseTransactionRollback(db);
+                DatabaseClose(db);
+                return false;
             }
         }
+    }
+
+    if (!DatabaseTransactionCommit(db)) {
+        err = GetLastError();
+        PrintFormat("%s error (DatabaseTransactionCommit) #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        DatabaseClose(db);
+        return false;
     }
 
     DatabaseClose(db);
@@ -1415,7 +1444,7 @@ bool hasCurrencyNews(string currency, ENUM_NEWS_IMPORTANCE importance, int minsB
         return false;
     }
 
-    sql = StringFormat("SELECT time_mode, time, importance FROM main WHERE currency='%s' COLLATE NOCASE AND time >= %d AND time < %d ORDER BY time DESC", currency, date_from, date_to);
+    sql = StringFormat("SELECT time_mode, time, importance FROM main WHERE time >= %d AND time < %d AND currency='%s' COLLATE NOCASE", date_from, date_to, currency);
     dp = DatabasePrepare(db, sql);
 
     while (DatabaseRead(dp) && !IsStopped()) {
@@ -1430,11 +1459,13 @@ bool hasCurrencyNews(string currency, ENUM_NEWS_IMPORTANCE importance, int minsB
         if (!(Tc > tb && Tc < te)) continue;
 
         if (imp >= (int) importance) {
+            DatabaseFinalize(dp);
             DatabaseClose(db);
             return true;
         }
     }
 
+    DatabaseFinalize(dp);
     DatabaseClose(db);
     return false;
 }
