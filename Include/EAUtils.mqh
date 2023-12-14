@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.14"
+#property version   "1.15"
 
 #include <errordescription.mqh>
 
@@ -1240,7 +1240,7 @@ bool fetchCalendar(int year) {
             return false;
         }
 
-        sql = StringFormat("SELECT count(*) FROM country WHERE id=%d LIMIT 1", countries[i].id);
+        sql = StringFormat("SELECT EXISTS (SELECT 1 FROM country WHERE id=%d LIMIT 1)", countries[i].id);
         dp = DatabasePrepare(db, sql);
         DatabaseRead(dp);
         DatabaseColumnInteger(dp, 0, t);
@@ -1292,7 +1292,7 @@ bool fetchCalendar(int year) {
                 return false;
             }
 
-            sql = StringFormat("SELECT count(*) FROM value WHERE id=%d LIMIT 1", values[j].id);
+            sql = StringFormat("SELECT EXISTS (SELECT 1 FROM value WHERE id=%d LIMIT 1)", values[j].id);
             dp = DatabasePrepare(db, sql);
             DatabaseRead(dp);
             DatabaseColumnInteger(dp, 0, t);
@@ -1322,7 +1322,7 @@ bool fetchCalendar(int year) {
                 continue;
             }
 
-            sql = StringFormat("SELECT count(*) FROM event WHERE id=%d LIMIT 1", event.id);
+            sql = StringFormat("SELECT EXISTS (SELECT 1 FROM event WHERE id=%d LIMIT 1)", event.id);
             dp = DatabasePrepare(db, sql);
             DatabaseRead(dp);
             DatabaseColumnInteger(dp, 0, t);
