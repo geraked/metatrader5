@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.0"
+#property version   "1.1"
 
 #define WININET_BUFF_SIZE      16384
 #define WININET_KERNEL_ERRORS  true
@@ -34,7 +34,7 @@ int GetLastError(void);
 #import "wininet.dll"
 long InternetOpenW(const ushort &lpszAgent[], int dwAccessType, const ushort &lpszProxyName[], const ushort &lpszProxyBypass[], uint dwFlags);
 long InternetConnectW(long hInternet, const ushort &lpszServerName[], int nServerPort, const ushort &lpszUsername[], const ushort &lpszPassword[], int dwService, uint dwFlags, int dwContext);
-long HttpOpenRequestW(long hConnect, const ushort &lpszVerb[], const ushort &lpszObjectName[], const ushort &lpszVersion[], const ushort &lpszReferer[], int lplpszAcceptTypes, uint dwFlags, int dwContext);
+long HttpOpenRequestW(long hConnect, const ushort &lpszVerb[], const ushort &lpszObjectName[], const ushort &lpszVersion[], const ushort &lpszReferer[], const ushort &lplpszAcceptTypes[][], uint dwFlags, int dwContext);
 int InternetCloseHandle(long hInternet);
 int HttpSendRequestW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, const uchar &lpOptional[], int dwOptionalLength);
 int HttpQueryInfoW(long hRequest, int dwInfoLevel, uchar &lpvBuffer[], int &lpdwBufferLength, int &lpdwIndex);
@@ -90,8 +90,8 @@ int WebReq(
     uint flags;
 
 //- Create the NULL string.
-    ushort nill[2];
-    StringToShortArray("", nill);
+    ushort nill[2] = {0, 0};
+    ushort nill2[2][2] = {{0, 0}, {0, 0}};
 
 //- Create a session.
     StringToShortArray(GetUserAgent(), buff);
@@ -118,17 +118,23 @@ int WebReq(
     if (port == 443) flags |= INTERNET_FLAG_SECURE;
     if (method == "GET") flags |= INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP | INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS;
     if (method != "GET") flags |= INTERNET_FLAG_NO_AUTO_REDIRECT;
-    request = HttpOpenRequestW(connection, buff, buff2, nill, nill, 0, flags, 0);
+    request = HttpOpenRequestW(connection, buff, buff2, nill, nill, nill2, flags, 0);
     if (request <= 0)
         return _wininetErr("HttpOpenRequest", session, connection);
 
 //- Send the request.
     bLen = StringToShortArray("Accept-Encoding: gzip, deflate\r\n" + headers, buff);
-    bLen2 = ArrayCopy(cbuff, data);
     if (bLen > 0 && buff[bLen - 1] == 0) bLen--;
-    if (bLen2 > 0 && cbuff[bLen2 - 1] == 0) bLen2--;
-    if (!HttpSendRequestW(request, buff, bLen, cbuff, bLen2))
-        return _wininetErr("HttpSendRequest", session, connection, request);
+    if (ArrayIsDynamic(data)) {
+        bLen2 = ArrayCopy(cbuff, data);
+        if (bLen2 > 0 && cbuff[bLen2 - 1] == 0) bLen2--;
+        if (!HttpSendRequestW(request, buff, bLen, cbuff, bLen2))
+            return _wininetErr("HttpSendRequest", session, connection, request);
+    } else {
+        bLen2 = sizeof(data);
+        if (!HttpSendRequestW(request, buff, bLen, data, bLen2))
+            return _wininetErr("HttpSendRequest", session, connection, request);
+    }
 
 //- Fetch the status code from the response header.
     bLen = WININET_BUFF_SIZE;
