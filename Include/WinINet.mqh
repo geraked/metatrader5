@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.1"
+#property version   "1.2"
 
 #define WININET_BUFF_SIZE      16384
 #define WININET_KERNEL_ERRORS  true
@@ -36,9 +36,13 @@ long InternetOpenW(const ushort &lpszAgent[], int dwAccessType, const ushort &lp
 long InternetConnectW(long hInternet, const ushort &lpszServerName[], int nServerPort, const ushort &lpszUsername[], const ushort &lpszPassword[], int dwService, uint dwFlags, int dwContext);
 long HttpOpenRequestW(long hConnect, const ushort &lpszVerb[], const ushort &lpszObjectName[], const ushort &lpszVersion[], const ushort &lpszReferer[], const ushort &lplpszAcceptTypes[][], uint dwFlags, int dwContext);
 int InternetCloseHandle(long hInternet);
-int HttpSendRequestW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, const uchar &lpOptional[], int dwOptionalLength);
-int HttpQueryInfoW(long hRequest, int dwInfoLevel, uchar &lpvBuffer[], int &lpdwBufferLength, int &lpdwIndex);
 int InternetSetOptionW(long hInternet, int dwOption, int &lpBuffer, int dwBufferLength);
+int HttpAddRequestHeadersW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, uint dwModifiers);
+int HttpSendRequestW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, const uchar &lpOptional[], int dwOptionalLength);
+int HttpSendRequestExW(long hRequest, long lpBuffersIn, long lpBuffersOut, uint dwFlags, int dwContext);
+int HttpEndRequestW(long hRequest, long lpBuffersOut, uint dwFlags, int dwContext);
+int HttpQueryInfoW(long hRequest, int dwInfoLevel, uchar &lpvBuffer[], int &lpdwBufferLength, int &lpdwIndex);
+int InternetWriteFile(long hFile, const uchar &lpBuffer[], int dwNumberOfBytesToWrite, int &lpdwNumberOfBytesWritten);
 int InternetReadFile(long hFile, uchar &lpBuffer[], int dwNumberOfBytesToRead, int &lpdwNumberOfBytesRead);
 #import
 
@@ -73,8 +77,9 @@ struct WininetResponse {
 int WebReq(
     const string  method,           // HTTP method
     const string  host,             // host name
-    int           port,             // port number
     const string  path,             // URL path
+    int           port,             // port number
+    bool          secure,           // use HTTPS
     const string  headers,          // HTTP request headers
     const uchar   &data[],          // HTTP request body
     uchar         &result[],        // server response data
@@ -84,10 +89,11 @@ int WebReq(
 //- Declare the variables.
     ushort buff[WININET_BUFF_SIZE / 2], buff2[WININET_BUFF_SIZE / 2];
     uchar cbuff[WININET_BUFF_SIZE];
-    int bLen, bLen2, bIdx;
+    int n, bLen, bLen2, bIdx;
     long session, connection, request;
     int status;
     uint flags;
+    string head;
 
 //- Create the NULL string.
     ushort nill[2] = {0, 0};
@@ -115,26 +121,38 @@ int WebReq(
     StringToShortArray(path, buff2);
     flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_PRAGMA_NOCACHE;
     flags |= INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
-    if (port == 443) flags |= INTERNET_FLAG_SECURE;
+    if (port == 443 || (secure && port != 80)) flags |= INTERNET_FLAG_SECURE;
     if (method == "GET") flags |= INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP | INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS;
     if (method != "GET") flags |= INTERNET_FLAG_NO_AUTO_REDIRECT;
     request = HttpOpenRequestW(connection, buff, buff2, nill, nill, nill2, flags, 0);
     if (request <= 0)
         return _wininetErr("HttpOpenRequest", session, connection);
 
-//- Send the request.
-    bLen = StringToShortArray("Accept-Encoding: gzip, deflate\r\n" + headers, buff);
+//- Add request headers.
+    n = ArraySize(data);
+    if (n > 0 && data[n - 1] == 0) n--;
+    head = StringFormat("Accept-Encoding: gzip, deflate\r\n"
+                        "Content-Length: %d\r\n", n);
+    bLen = StringToShortArray(head + headers, buff);
     if (bLen > 0 && buff[bLen - 1] == 0) bLen--;
-    if (ArrayIsDynamic(data)) {
-        bLen2 = ArrayCopy(cbuff, data);
-        if (bLen2 > 0 && cbuff[bLen2 - 1] == 0) bLen2--;
-        if (!HttpSendRequestW(request, buff, bLen, cbuff, bLen2))
-            return _wininetErr("HttpSendRequest", session, connection, request);
-    } else {
-        bLen2 = sizeof(data);
-        if (!HttpSendRequestW(request, buff, bLen, data, bLen2))
-            return _wininetErr("HttpSendRequest", session, connection, request);
+    if (!HttpAddRequestHeadersW(request, buff, bLen, 0x80000000))
+        return _wininetErr("HttpAddRequestHeaders", session, connection, request);
+
+//- Send the request.
+    if (!HttpSendRequestExW(request, 0, 0, 0, 0))
+        return _wininetErr("HttpSendRequestEx", session, connection, request);
+    bIdx = 0;
+    bLen2 = 0;
+    while (true) {
+        bLen = MathMin(WININET_BUFF_SIZE, n - bIdx);
+        if (bLen <= 0) break;
+        ArrayCopy(cbuff, data, 0, bIdx, bLen);
+        if (!InternetWriteFile(request, cbuff, bLen, bLen2))
+            return _wininetErr("InternetWriteFile", session, connection, request);
+        bIdx += bLen2;
     }
+    if (!HttpEndRequestW(request, 0, 0, 0))
+        return _wininetErr("HttpEndRequest", session, connection, request);
 
 //- Fetch the status code from the response header.
     bLen = WININET_BUFF_SIZE;
@@ -173,34 +191,17 @@ int WebReq(
 //+------------------------------------------------------------------+
 //| Overload                                                         |
 //+------------------------------------------------------------------+
-int WebReq(
-    const string  method,           // HTTP method
-    const string  host,             // host name
-    int           port,             // port number
-    const string  path,             // URL path
-    const string  headers,          // HTTP request headers
-    const string  data,             // HTTP request body
-    string        &result,          // server response data
-    string        &result_headers   // headers of server response
-) {
-    int status;
-    uchar data_arr[], result_arr[];
-    StringToCharArray(data, data_arr, 0, WHOLE_ARRAY, CP_UTF8);
-    status = WebReq(method, host, port, path, headers, data_arr, result_arr, result_headers);
-    result = UnicodeUnescape(result_arr);
-    return status;
-}
-
-//+------------------------------------------------------------------+
-//| Overload                                                         |
-//+------------------------------------------------------------------+
 bool WebReq(WininetRequest &req, WininetResponse &res) {
+    if (req.method == NULL || req.method == "") req.method = "GET";
+    if (req.path == NULL || req.path == "") req.path = "/";
+    if (req.headers == NULL) req.headers = "";
+    if (req.port == 0) req.port = 443;
     if (ArraySize(req.data) > 0 || req.data_str == NULL)
-        res.status = WebReq(req.method, req.host, req.port, req.path, req.headers, req.data, res.data, res.headers);
+        res.status = WebReq(req.method, req.host, req.path, req.port, false, req.headers, req.data, res.data, res.headers);
     else {
         uchar data_arr[];
         StringToCharArray(req.data_str, data_arr, 0, WHOLE_ARRAY, CP_UTF8);
-        res.status = WebReq(req.method, req.host, req.port, req.path, req.headers, data_arr, res.data, res.headers);
+        res.status = WebReq(req.method, req.host, req.path, req.port, false, req.headers, data_arr, res.data, res.headers);
     }
     if (res.status == -1) return false;
     return true;
@@ -211,7 +212,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.0",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.2",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
