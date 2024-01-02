@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.2"
+#property version   "1.3"
 
 #define WININET_BUFF_SIZE      16384
 #define WININET_KERNEL_ERRORS  true
@@ -28,7 +28,7 @@
 #define HTTP_QUERY_RAW_HEADERS_CRLF             22
 
 #import "kernel32.dll"
-int GetLastError(void);
+uint GetLastError(void);
 #import
 
 #import "wininet.dll"
@@ -212,7 +212,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.2",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.3",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
@@ -319,7 +319,7 @@ string UnicodeUnescape(uchar &arr[], int n = 0) {
 //| Handle WinINet errors.                                           |
 //+------------------------------------------------------------------+
 int _wininetErr(string title = "", long session = 0, long connection = 0, long request = 0) {
-    int err = kernel32::GetLastError();
+    uint err = kernel32::GetLastError();
     if (WININET_KERNEL_ERRORS)
         PrintFormat("Error (%s, %s): #%d", "WinINet", title, err);
     if (request > 0) InternetCloseHandle(request);
