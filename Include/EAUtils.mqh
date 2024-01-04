@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.15"
+#property version   "1.16"
 
 #include <errordescription.mqh>
 
@@ -1448,10 +1448,10 @@ bool hasCurrencyNews(string currency, ENUM_NEWS_IMPORTANCE importance, int minsB
     dp = DatabasePrepare(db, sql);
 
     while (DatabaseRead(dp) && !IsStopped()) {
-        int time_mode, time, imp;
-        DatabaseColumnInteger(dp, 0, time_mode);
-        DatabaseColumnInteger(dp, 1, time);
-        DatabaseColumnInteger(dp, 2, imp);
+        long time_mode, time, imp;
+        DatabaseColumnLong(dp, 0, time_mode);
+        DatabaseColumnLong(dp, 1, time);
+        DatabaseColumnLong(dp, 2, imp);
         datetime t = (datetime) time;
 
         datetime tb = t - minsBefore * PeriodSeconds(PERIOD_M1);
