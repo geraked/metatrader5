@@ -111,15 +111,15 @@ int WebReq(
 
 //- Enable automatically decoding from gzip and deflate.
     lval = 1;
-    if (!InternetSetOptionW(session, INTERNET_OPTION_HTTP_DECODING, lval, 4))
+    if (!InternetSetOptionW(session, INTERNET_OPTION_HTTP_DECODING, lval, sizeof(int)))
         return _wininetErr("InternetSetOption, DECODING", session);
 
 //- Set timeouts.
     lval = WININET_TIMEOUT_SECS * 1000;
-    if (!InternetSetOptionW(session, INTERNET_OPTION_SEND_TIMEOUT, lval, 4))
+    if (!InternetSetOptionW(session, INTERNET_OPTION_SEND_TIMEOUT, lval, sizeof(int)))
         return _wininetErr("InternetSetOption, SEND_TIMEOUT", session);
     lval = WININET_TIMEOUT_SECS * 1000;
-    if (!InternetSetOptionW(session, INTERNET_OPTION_RECEIVE_TIMEOUT, lval, 4))
+    if (!InternetSetOptionW(session, INTERNET_OPTION_RECEIVE_TIMEOUT, lval, sizeof(int)))
         return _wininetErr("InternetSetOption, RECEIVE_TIMEOUT", session);
 
 //- Create a connection.
