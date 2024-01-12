@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.16"
+#property version   "1.17"
 
 #include <errordescription.mqh>
 
@@ -152,7 +152,10 @@ bool auth() {
 //+------------------------------------------------------------------+
 double Ask(string name = NULL) {
     name = name == NULL ? _Symbol : name;
-    return SymbolInfoDouble(name, SYMBOL_ASK);
+    MqlTick tick;
+    if (!SymbolInfoTick(name, tick))
+        return 0;
+    return tick.ask;
 }
 
 //+------------------------------------------------------------------+
@@ -160,7 +163,10 @@ double Ask(string name = NULL) {
 //+------------------------------------------------------------------+
 double Bid(string name = NULL) {
     name = name == NULL ? _Symbol : name;
-    return SymbolInfoDouble(name, SYMBOL_BID);
+    MqlTick tick;
+    if (!SymbolInfoTick(name, tick))
+        return 0;
+    return tick.bid;
 }
 
 //+------------------------------------------------------------------+
