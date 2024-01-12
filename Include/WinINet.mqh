@@ -5,8 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.3"
+#property version   "1.4"
 
+#define WININET_TIMEOUT_SECS   300
 #define WININET_BUFF_SIZE      16384
 #define WININET_KERNEL_ERRORS  true
 
@@ -21,6 +22,8 @@
 #define INTERNET_FLAG_NO_AUTO_REDIRECT          0x00200000
 
 #define INTERNET_OPTION_HTTP_DECODING           65
+#define INTERNET_OPTION_SEND_TIMEOUT            5
+#define INTERNET_OPTION_RECEIVE_TIMEOUT         6
 #define HTTP_QUERY_CONTENT_LENGTH               5
 #define HTTP_QUERY_STATUS_CODE                  19
 #define HTTP_QUERY_STATUS_TEXT                  20
@@ -36,7 +39,7 @@ long InternetOpenW(const ushort &lpszAgent[], int dwAccessType, const ushort &lp
 long InternetConnectW(long hInternet, const ushort &lpszServerName[], int nServerPort, const ushort &lpszUsername[], const ushort &lpszPassword[], int dwService, uint dwFlags, int dwContext);
 long HttpOpenRequestW(long hConnect, const ushort &lpszVerb[], const ushort &lpszObjectName[], const ushort &lpszVersion[], const ushort &lpszReferer[], const ushort &lplpszAcceptTypes[][], uint dwFlags, int dwContext);
 int InternetCloseHandle(long hInternet);
-int InternetSetOptionW(long hInternet, int dwOption, int &lpBuffer, int dwBufferLength);
+int InternetSetOptionW(long hInternet, int dwOption, long &lpBuffer, int dwBufferLength);
 int HttpAddRequestHeadersW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, uint dwModifiers);
 int HttpSendRequestW(long hRequest, const ushort &lpszHeaders[], int dwHeadersLength, const uchar &lpOptional[], int dwOptionalLength);
 int HttpSendRequestExW(long hRequest, long lpBuffersIn, long lpBuffersOut, uint dwFlags, int dwContext);
@@ -90,6 +93,7 @@ int WebReq(
     ushort buff[WININET_BUFF_SIZE / 2], buff2[WININET_BUFF_SIZE / 2];
     uchar cbuff[WININET_BUFF_SIZE];
     int n, bLen, bLen2, bIdx;
+    long lval;
     long session, connection, request;
     int status;
     uint flags;
@@ -106,9 +110,17 @@ int WebReq(
         return _wininetErr("InternetOpen");
 
 //- Enable automatically decoding from gzip and deflate.
-    bIdx = 1;
-    if (!InternetSetOptionW(session, INTERNET_OPTION_HTTP_DECODING, bIdx, sizeof(bIdx)))
-        return _wininetErr("InternetSetOption", session);
+    lval = 1;
+    if (!InternetSetOptionW(session, INTERNET_OPTION_HTTP_DECODING, lval, 4))
+        return _wininetErr("InternetSetOption, DECODING", session);
+
+//- Set timeouts.
+    lval = WININET_TIMEOUT_SECS * 1000;
+    if (!InternetSetOptionW(session, INTERNET_OPTION_SEND_TIMEOUT, lval, 4))
+        return _wininetErr("InternetSetOption, SEND_TIMEOUT", session);
+    lval = WININET_TIMEOUT_SECS * 1000;
+    if (!InternetSetOptionW(session, INTERNET_OPTION_RECEIVE_TIMEOUT, lval, 4))
+        return _wininetErr("InternetSetOption, RECEIVE_TIMEOUT", session);
 
 //- Create a connection.
     StringToShortArray(host, buff);
@@ -212,7 +224,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.3",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.4",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
