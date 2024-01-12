@@ -16,6 +16,7 @@ input int P1 = 0;
 input group "General"
 input double SLCoef = 1.0; // SL Coefficient
 input double TPCoef = 1.0; // TP Coefficient
+input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 10; // SL Look Back
 input int SLDev = 60; // SL Deviation (Points)
 input bool CloseOrders = true; // Check For Closing Conditions
@@ -69,8 +70,7 @@ bool BuySignal() {
     return false;
 
     double in = Ask();
-    int il = iLowest(NULL, 0, MODE_LOW, SLLookback);
-    double sl = Low(il) - SLDev * _Point;
+    double sl = BuySL(SLType, SLLookback, in, SLDev);
     double d = MathAbs(in - sl);
     double tp = in + TPCoef * d;
     bool isl = Grid ? true : IgnoreSL;
@@ -88,8 +88,7 @@ bool SellSignal() {
     return false;
 
     double in = Bid();
-    int ih = iHighest(NULL, 0, MODE_HIGH, SLLookback);
-    double sl = High(ih) + SLDev * _Point;
+    double sl = SellSL(SLType, SLLookback, in, SLDev);
     double d = MathAbs(in - sl);
     double tp = in - TPCoef * d;
     bool isl = Grid ? true : IgnoreSL;

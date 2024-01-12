@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.17"
+#property version   "1.18"
 
 #include <errordescription.mqh>
 
@@ -24,6 +24,12 @@ enum ENUM_FILLING {
     FILLING_IOK, // IOK
     FILLING_BOC, // BOC
     FILLING_RETURN // RETURN
+};
+
+enum ENUM_SL {
+    SL_SWING, // Swing
+    SL_AR, // Average Range
+    SL_MR // MAX Range
 };
 
 class GerEA {
@@ -1474,6 +1480,90 @@ bool hasCurrencyNews(string currency, ENUM_NEWS_IMPORTANCE importance, int minsB
     DatabaseFinalize(dp);
     DatabaseClose(db);
     return false;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+double BuySL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int start = 0, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    symbol = symbol == NULL ? _Symbol : symbol;
+    price = price == 0 ? Ask(symbol) : price;
+    double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+    int digits = (int) SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+    double sl = 0;
+
+    if (sltype == SL_SWING) {
+        int i = iLowest(symbol, timeframe, MODE_LOW, lookback, start);
+        sl = iLow(symbol, timeframe, i) - dev * point;
+    }
+
+    if (sltype == SL_AR) {
+        double sum = 0;
+        for (int i = start; i < start + lookback; i++) {
+            double high = iHigh(symbol, timeframe, i);
+            double low = iLow(symbol, timeframe, i);
+            double range = high - low;
+            sum += range;
+        }
+        sl = price - (sum / lookback) - dev * point;
+    }
+
+    if (sltype == SL_MR) {
+        double max = 0;
+        for (int i = start; i < start + lookback; i++) {
+            double high = iHigh(symbol, timeframe, i);
+            double low = iLow(symbol, timeframe, i);
+            double range = high - low;
+            if (range > max)
+                max = range;
+        }
+        sl = price - max - dev * point;
+    }
+
+    sl = NormalizeDouble(sl, digits);
+    return sl;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+double SellSL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int start = 0, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    symbol = symbol == NULL ? _Symbol : symbol;
+    price = price == 0 ? Bid(symbol) : price;
+    double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+    int digits = (int) SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+    double sl = 0;
+
+    if (sltype == SL_SWING) {
+        int i = iHighest(symbol, timeframe, MODE_HIGH, lookback, start);
+        sl = iHigh(symbol, timeframe, i) + dev * point;
+    }
+
+    if (sltype == SL_AR) {
+        double sum = 0;
+        for (int i = start; i < start + lookback; i++) {
+            double high = iHigh(symbol, timeframe, i);
+            double low = iLow(symbol, timeframe, i);
+            double range = high - low;
+            sum += range;
+        }
+        sl = price + (sum / lookback) + dev * point;
+    }
+
+    if (sltype == SL_MR) {
+        double max = 0;
+        for (int i = start; i < start + lookback; i++) {
+            double high = iHigh(symbol, timeframe, i);
+            double low = iLow(symbol, timeframe, i);
+            double range = high - low;
+            if (range > max)
+                max = range;
+        }
+        sl = price + max + dev * point;
+    }
+
+    sl = NormalizeDouble(sl, digits);
+    return sl;
 }
 
 //+------------------------------------------------------------------+

@@ -18,6 +18,7 @@ input group "General"
 input bool MultipleSymbol = false; // Multiple Symbols
 input string Symbols = ""; // Symbols
 input double TPCoef = 1.0; // TP Coefficient
+input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 10; // SL Lookback
 input int SLDev = 60; // SL Deviation (Points)
 input bool CloseOrders = true; // Check For Closing Conditions
@@ -69,11 +70,9 @@ bool BuySignal(string s) {
 
     return false;
 
-    double point = SymbolInfoDouble(s, SYMBOL_POINT);
     int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
     double in = Ask(s);
-    int il = iLowest(s, 0, MODE_LOW, SLLookback);
-    double sl = iLow(s, 0, il) - SLDev * point;
+    double sl = BuySL(SLType, SLLookback, in, SLDev, 0, s);
     double d = MathAbs(in - sl);
     double tp = in + TPCoef * d;
     bool isl = Grid ? true : IgnoreSL;
@@ -89,11 +88,9 @@ bool SellSignal(string s) {
 
     return false;
 
-    double point = SymbolInfoDouble(s, SYMBOL_POINT);
     int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
     double in = Bid(s);
-    int ih = iHighest(s, 0, MODE_HIGH, SLLookback);
-    double sl = iHigh(s, 0, ih) + SLDev * point;
+    double sl = SellSL(SLType, SLLookback, in, SLDev, 0, s);
     double d = MathAbs(in - sl);
     double tp = in - TPCoef * d;
     bool isl = Grid ? true : IgnoreSL;
