@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.18"
+#property version   "1.19"
 
 #include <errordescription.mqh>
 
@@ -1044,6 +1044,26 @@ void fillSymbols(string &arr[], bool multiple_symbols, string symbols_str = "", 
             arr[k] = symbol;
             k++;
         }
+    }
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void fixMultiCurrencies(string currencies_str = "EUR, USD, JPY, CHF, AUD, GBP, CAD, NZD") {
+    string postfix = StringLen(_Symbol) > 6 ? StringSubstr(_Symbol, 6) : "";
+    string cur = AccountInfoString(ACCOUNT_CURRENCY);
+    string symbol;
+    string curs[];
+    bool b;
+    int n = StringSplit(currencies_str, ',', curs);
+    for (int i = 0; i < n; i++) {
+        if (cur == curs[i]) continue;
+        symbol = cur + Trim(curs[i]) + postfix;
+        if (!SymbolExist(symbol, b))
+            symbol = Trim(curs[i]) + cur + postfix;
+        if (!SymbolExist(symbol, b)) continue;
+        Ask(symbol);
     }
 }
 
