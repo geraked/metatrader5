@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.1"
+#property version   "1.2"
 
 #include <SysTime.mqh>
 
@@ -26,10 +26,22 @@ T StorageGet(string key, T default_value) {
 
     string val;
     string sql = StringFormat("SELECT value FROM T WHERE key='%s' LIMIT 1", key);
+
     int dp = DatabasePrepare(db, sql);
-    while (DatabaseRead(dp) && !IsStopped()) {
-        DatabaseColumnText(dp, 0, val);
+    if (dp == INVALID_HANDLE) {
+        PrintFormat("Error (%s, DatabasePrepare): #%d", __FUNCTION__, GetLastError());
+        DatabaseClose(db);
+        return default_value;
     }
+
+    if (!DatabaseRead(dp) && GetLastError() != ERR_DATABASE_NO_MORE_DATA) {
+        PrintFormat("Error (%s, DatabaseRead): #%d", __FUNCTION__, GetLastError());
+    }
+
+    if (!DatabaseColumnText(dp, 0, val)) {
+        PrintFormat("Error (%s, DatabaseColumnText): #%d", __FUNCTION__, GetLastError());
+    }
+
     DatabaseFinalize(dp);
     DatabaseClose(db);
 
@@ -118,7 +130,7 @@ bool StorageDeleteAll(string prefix = NULL) {
 //+------------------------------------------------------------------+
 datetime StorageLastUpdate(string key, ENUM_STORAGE_TIME time = STORAGE_TIME_SYSTEM) {
     int db = _storageInitDb();
-    if (db == INVALID_HANDLE) return -1;
+    if (db == INVALID_HANDLE) return 0;
 
     string time_col = "time_system";
     if (time == STORAGE_TIME_TRADESERVER)
@@ -126,13 +138,24 @@ datetime StorageLastUpdate(string key, ENUM_STORAGE_TIME time = STORAGE_TIME_SYS
 
     datetime val = 0;
     string sql = StringFormat("SELECT %s FROM T WHERE key='%s' LIMIT 1", time_col, key);
+
     int dp = DatabasePrepare(db, sql);
-    while (DatabaseRead(dp) && !IsStopped()) {
-        DatabaseColumnLong(dp, 0, val);
+    if (dp == INVALID_HANDLE) {
+        PrintFormat("Error (%s, DatabasePrepare): #%d", __FUNCTION__, GetLastError());
+        DatabaseClose(db);
+        return val;
     }
+
+    if (!DatabaseRead(dp) && GetLastError() != ERR_DATABASE_NO_MORE_DATA) {
+        PrintFormat("Error (%s, DatabaseRead): #%d", __FUNCTION__, GetLastError());
+    }
+
+    if (!DatabaseColumnLong(dp, 0, val)) {
+        PrintFormat("Error (%s, DatabaseColumnLong): #%d", __FUNCTION__, GetLastError());
+    }
+
     DatabaseFinalize(dp);
     DatabaseClose(db);
-
     return val;
 }
 
