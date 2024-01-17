@@ -14,6 +14,8 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 | [AFAOSMD](Experts/AFAOSMD.mq5) | [:label: v1.3](https://github.com/geraked/metatrader5/raw/master/Build/AFAOSMD/AFAOSMD-v1.3.ex5) | [:arrow_forward:](https://youtu.be/UYBLh1IvIVs) | [:chart_with_upwards_trend:](Test/AFAOSMD) | A strategy using [Average Force](Indicators/AverageForce.mq5), [Andean Oscillator](Indicators/AndeanOscillator.mq5), and MACD |
 | [NWERSIASF](Experts/NWERSIASF.mq5) | [:label: v1.2](https://github.com/geraked/metatrader5/raw/master/Build/NWERSIASF/NWERSIASF-v1.2.ex5) | [:arrow_forward:](https://youtu.be/Olb47nBRSSo) | [:chart_with_upwards_trend:](Test/NWERSIASF) | A strategy using [Nadaraya-Watson Envelope](Indicators/NadarayaWatsonEnvelope.mq5), RSI, and [ATR Stop Loss Finder](Indicators/AtrSlFinder.mq5) indicators |
 | [LRCUTB](Experts/LRCUTB.mq5) | [:label: v1.2](https://github.com/geraked/metatrader5/raw/master/Build/LRCUTB/LRCUTB-v1.2.ex5) | [:arrow_forward:](https://youtu.be/0ZzLlA9NFxo) | [:chart_with_upwards_trend:](Test/LRCUTB) | A strategy using [Linear Regression Candles](Indicators/LinearRegressionCandles.mq5) and [UT Bot Alerts](Indicators/UTBot.mq5) |
+| [COT1](Experts/COT1.mq5) | [:label: v1.0](https://github.com/geraked/metatrader5/raw/master/Build/COT1/COT1-v1.0.ex5) | [:arrow_forward:](https://youtu.be/Dy1hk_NXwfs) | [:chart_with_upwards_trend:](Test/COT1) | A strategy using [Commitments of Traders (COT)](Include/Cot.mqh) and [Super Trend](Indicators/SuperTrend.mq5) indicator |
+
 
 Additionally, there are strategies available for utilization within TradingView. If this piques your interest, you can explore them in this [repository](https://github.com/geraked/tradingview).
 
