@@ -156,22 +156,16 @@ void CheckForSignal() {
         if (stype == "buy") {
             double in = Ask(s);
             double sl = BuySL(SLType, SLLookback, in, SLDev, 0, s, PERIOD_D1);
-            double d = MathAbs(in - sl);
-            double tp = in + TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-
-            ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double tp = in + TPCoef * MathAbs(in - sl);
+            ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
             Sleep(5000);
         }
 
         if (stype == "sell") {
             double in = Bid(s);
             double sl = SellSL(SLType, SLLookback, in, SLDev, 0, s, PERIOD_D1);
-            double d = MathAbs(in - sl);
-            double tp = in - TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-
-            ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double tp = in - TPCoef * MathAbs(in - sl);
+            ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
             Sleep(5000);
         }
     }
@@ -187,6 +181,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A simple strategy using three Moving Averages and Williams Fractals"
 #property description "USDCAD-15M  2021.02.22 - 2023.09.08"
 
@@ -77,11 +77,10 @@ bool BuySignal() {
     double sl = Low(1) > MA2[1] ? MA2[1] : MA3[1];
     double d = MathAbs(in - sl);
     double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
 
     if (d < MinSL * _Point) return false;
 
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -98,11 +97,10 @@ bool SellSignal() {
     double sl = High(1) < MA2[1] ? MA2[1] : MA3[1];
     double d = MathAbs(in - sl);
     double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
 
     if (d < MinSL * _Point) return false;
 
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -116,6 +114,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridMaxLvl = GridMaxLvl;
     ea.equityDrawdownLimit = EquityDrawdownLimit * 0.01;

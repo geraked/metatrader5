@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.2"
+#property version     "1.3"
 #property description "A strategy using two Moving Averages and Andean Oscillator"
 #property description "Multiple Symbols(EURUSD, EURCAD, USDCAD)-4H  2019.01.01 - 2023.10.17"
 
@@ -32,6 +32,7 @@ input group "General"
 input bool MultipleSymbol = true; // Multiple Symbols
 input string Symbols = "EURUSD, EURCAD, USDCAD"; // Symbols
 input double TPCoef = 1; // TP Coefficient
+input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 10; // SL Look Back
 input int SLDev = 100; // SL Deviation (Points)
 input int MinPosInterval = 6; // Minimum New Position Interval
@@ -52,11 +53,11 @@ input double GridTrailingStopLevel = 0; // Grid Trailing Stop Level (%) (0: Disa
 input int GridMaxLvl = 20; // Grid Max Levels
 
 input group "News"
-input bool News = true; // News Enable
+input bool News = false; // News Enable
 input ENUM_NEWS_IMPORTANCE NewsImportance = NEWS_IMPORTANCE_MEDIUM; // News Importance
 input int NewsMinsBefore = 60; // News Minutes Before
 input int NewsMinsAfter = 60; // News Minutes After
-input int NewsStartYear = 2019; // News Start Year to Fetch for Backtesting (0: Disable)
+input int NewsStartYear = 0; // News Start Year to Fetch for Backtesting (0: Disable)
 
 input group "Open Position Limit"
 input bool OpenNewPos = true; // Allow Opening New Position
@@ -111,7 +112,6 @@ double AOS(string symbol, ENUM_AOS_BI bi = 0, int i = 0) {
 //+------------------------------------------------------------------+
 void CheckForSignal() {
     if (!OpenNewPos) return;
-    if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
     if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
     if (!MultipleOpenPos && ea.PosTotal() > 0) return;
 
@@ -124,6 +124,7 @@ void CheckForSignal() {
 
         if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
         if (hasDealRecently(ea.GetMagic(), s, MinPosInterval)) continue;
+        if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
         bool bc = AOS(s, AOS_BI_BULL, 2) <= AOS(s, AOS_BI_SIGNAL, 2) && AOS(s, AOS_BI_BULL, 1) > AOS(s, AOS_BI_SIGNAL, 1);
         bool sc = AOS(s, AOS_BI_BEAR, 2) <= AOS(s, AOS_BI_SIGNAL, 2) && AOS(s, AOS_BI_BEAR, 1) > AOS(s, AOS_BI_SIGNAL, 1);
@@ -143,22 +144,18 @@ void CheckForSignal() {
 
         if (bc) {
             double in = Ask(s);
-            int il = iLowest(s, 0, MODE_LOW, SLLookback, 0);
-            double sl = iLow(s, 0, il) - SLDev * point;
-            double d = MathAbs(in - sl);
-            double tp = in + TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-            ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double sl = BuySL(SLType, SLLookback, in, SLDev, 0, s);
+            double tp = in + TPCoef * MathAbs(in - sl);
+            ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
+            Sleep(5000);
         }
 
         else if (sc) {
             double in = Bid(s);
-            int ih = iHighest(s, 0, MODE_HIGH, SLLookback, 0);
-            double sl = iHigh(s, 0, ih) + SLDev * point;
-            double d = MathAbs(in - sl);
-            double tp = in - TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-            ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double sl = SellSL(SLType, SLLookback, in, SLDev, 0, s);
+            double tp = in - TPCoef * MathAbs(in - sl);
+            ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
+            Sleep(5000);
         }
 
     }
@@ -173,6 +170,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

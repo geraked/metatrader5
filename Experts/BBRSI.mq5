@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.4"
+#property version     "1.5"
 #property description "A strategy using Bollinger Bands and RSI"
 #property description "XAUUSD-5M  2021.02.26 - 2023.09.15"
 
@@ -77,11 +77,8 @@ bool BuySignal() {
 
     double in = Ask();
     double sl = BB_L[1] - SLCoef * (BB_M[1] - BB_L[1]);
-    double d = MathAbs(in - sl);
-    double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -95,11 +92,8 @@ bool SellSignal() {
 
     double in = Bid();
     double sl = BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]);
-    double d = MathAbs(in - sl);
-    double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -129,6 +123,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

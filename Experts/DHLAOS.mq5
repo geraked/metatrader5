@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using Daily High/Low and Andean Oscillator indicators for scalping"
 #property description "AUDUSD-5M  2021.02.22 - 2023.09.19"
 
@@ -17,7 +17,8 @@ input int AosSignalPeriod = 9; // AOS Signal Period
 
 input group "General"
 input double TPCoef = 1.5; // TP Coefficient
-input int SLLookBack = 7; // SL Look Back
+input ENUM_SL SLType = SL_SWING; // SL Type
+input int SLLookback = 7; // SL Look Back
 input int SLDev = 60; // SL Deviation (Points)
 input int AosNCheck = 300; // AOS Max Candles
 input int DhlNCheck = 50; // DHL Max Candles
@@ -104,13 +105,9 @@ bool BuySignal() {
     if (!c2) return false;
 
     double in = Ask();
-    int il = iLowest(NULL, 0, MODE_LOW, SLLookBack, 1);
-    double sl = Low(il) - SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double sl = BuySL(SLType, SLLookback, in, SLDev, 1);
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -146,13 +143,9 @@ bool SellSignal() {
     if (!c2) return false;
 
     double in = Bid();
-    int ih = iHighest(NULL, 0, MODE_HIGH, SLLookBack, 1);
-    double sl = High(ih) + SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double sl = SellSL(SLType, SLLookback, in, SLDev, 1);
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -166,6 +159,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

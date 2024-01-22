@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.2"
+#property version     "1.3"
 #property description "A strategy using Nadaraya-Watson Envelope, RSI, and ATR Stop Loss Finder indicators"
 #property description "Multiple Symbols(USDCAD, AUDUSD, EURCHF)-2H  2019.01.01 - 2023.10.22"
 
@@ -125,7 +125,6 @@ double ASF(string symbol, int bi = 0, int i = 0) {
 //+------------------------------------------------------------------+
 void CheckForSignal() {
     if (!OpenNewPos) return;
-    if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
     if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
     if (!MultipleOpenPos && ea.PosTotal() > 0) return;
 
@@ -138,6 +137,7 @@ void CheckForSignal() {
 
         if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
         if (hasDealRecently(ea.GetMagic(), s, MinPosInterval)) continue;
+        if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
         double c1 = iClose(s, 0, 1);
         double o1 = iOpen(s, 0, 1);
@@ -159,19 +159,17 @@ void CheckForSignal() {
         if (bc) {
             double in = Ask(s);
             double sl = asfDn;
-            double d = MathAbs(in - sl);
-            double tp = in + TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-            ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double tp = in + TPCoef * MathAbs(in - sl);
+            ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
+            Sleep(5000);
         }
 
         else if (sc) {
             double in = Bid(s);
             double sl = asfUp;
-            double d = MathAbs(in - sl);
-            double tp = in - TPCoef * d;
-            bool isl = Grid ? true : IgnoreSL;
-            ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+            double tp = in - TPCoef * MathAbs(in - sl);
+            ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
+            Sleep(5000);
         }
 
     }
@@ -186,6 +184,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

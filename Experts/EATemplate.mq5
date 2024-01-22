@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
 //|                                                   EATemplate.mq5 |
-//|                                          Copyright 2023, Geraked |
+//|                                          Copyright 2024, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright   "Copyright 2023, Geraked"
+#property copyright   "Copyright 2024, Geraked"
 #property link        "https://github.com/geraked"
 #property version     "1.00"
 
@@ -71,11 +71,8 @@ bool BuySignal() {
 
     double in = Ask();
     double sl = BuySL(SLType, SLLookback, in, SLDev);
-    double d = MathAbs(in - sl);
-    double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -89,11 +86,8 @@ bool SellSignal() {
 
     double in = Bid();
     double sl = SellSL(SLType, SLLookback, in, SLDev);
-    double d = MathAbs(in - sl);
-    double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -118,6 +112,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

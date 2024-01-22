@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
 //|                                                  EATemplate2.mq5 |
-//|                                          Copyright 2023, Geraked |
+//|                                          Copyright 2024, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright   "Copyright 2023, Geraked"
+#property copyright   "Copyright 2024, Geraked"
 #property link        "https://github.com/geraked"
 #property version     "1.0"
 #property description "A strategy using..."
@@ -70,14 +70,10 @@ bool BuySignal(string s) {
 
     return false;
 
-    int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
     double in = Ask(s);
     double sl = BuySL(SLType, SLLookback, in, SLDev, 0, s);
-    double d = MathAbs(in - sl);
-    double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
     return true;
 }
 
@@ -88,14 +84,10 @@ bool SellSignal(string s) {
 
     return false;
 
-    int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
     double in = Bid(s);
     double sl = SellSL(SLType, SLLookback, in, SLDev, 0, s);
-    double d = MathAbs(in - sl);
-    double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, digits), s);
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP, s);
     return true;
 }
 
@@ -119,6 +111,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;
@@ -175,8 +168,8 @@ void OnTick() {
         if (!OpenNewPos) break;
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) break;
         if (!MultipleOpenPos && ea.PosTotal() > 0) break;
-        if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
         if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
+        if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
         if (BuySignal(s)) continue;
         SellSignal(s);

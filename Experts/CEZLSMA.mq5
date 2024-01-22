@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.4"
+#property version     "1.5"
 #property description "A Strategy Using Chandelier Exit and ZLSMA Indicators Based on the Heikin Ashi Candles"
 #property description "AUDUSD-15M  2019.01.01 - 2023.08.01"
 
@@ -86,10 +86,8 @@ bool BuySignal() {
 
     double in = Ask();
     double sl = CE_B[1] - SLDev * _Point;
-    double d = MathAbs(in - sl);
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, 0, isl, true, DoubleToString(d, _Digits));
+    double tp = 0;
+    ea.BuyOpen(in, sl, tp, IgnoreSL, true);
     return true;
 }
 
@@ -103,10 +101,8 @@ bool SellSignal() {
 
     double in = Bid();
     double sl = CE_S[1] + SLDev * _Point;
-    double d = MathAbs(in - sl);
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, 0, isl, true, DoubleToString(d, _Digits));
+    double tp = 0;
+    ea.SellOpen(in, sl, tp, IgnoreSL, true);
     return true;
 }
 
@@ -135,6 +131,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

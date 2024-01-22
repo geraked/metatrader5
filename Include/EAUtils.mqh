@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      EAUtils.mqh |
-//|                                          Copyright 2023, Geraked |
+//|                                     Copyright 2023-2024, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2023, Geraked"
+#property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.19"
+#property version   "1.20"
 
 #include <errordescription.mqh>
 
@@ -45,6 +45,7 @@ public:
     int nRetry;
     int mRetry;
     double trailingStopLevel;
+    bool grid;
     double gridVolMult;
     double gridTrailingStopLevel;
     int gridMaxLvl;
@@ -64,6 +65,7 @@ public:
         nRetry = 5;
         mRetry = 2000;
         trailingStopLevel = 0.5;
+        grid = false;
         gridVolMult = 1.0;
         gridTrailingStopLevel = 0;
         gridMaxLvl = 20;
@@ -79,7 +81,7 @@ public:
         magicNumber = calcMagic(magicSeed);
         authorized = auth();
     }
-
+    
     bool BuyOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
             return order(ORDER_TYPE_BUY, magicNumber, Ask(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
@@ -89,6 +91,30 @@ public:
     bool SellOpen(double sl, double tp, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0) {
         if (!reverse)
             return order(ORDER_TYPE_SELL, magicNumber, Bid(name), sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+        return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+    }    
+
+    bool BuyOpen(double in, double sl, double tp, bool isl = false, bool itp = false, string name = NULL, double vol = 0, string comment = "", bool set_comment = true) {
+        if (grid) isl = true;
+        if (name == NULL) name = _Symbol;
+        int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
+        double d = MathAbs(in - sl);
+        if ((comment == "" || comment == NULL) && (set_comment || grid))
+            comment = DoubleToString(d, digits);
+        if (!reverse)
+            return order(ORDER_TYPE_BUY, magicNumber, in, sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+        return order(ORDER_TYPE_SELL, magicNumber, Bid(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
+    }
+
+    bool SellOpen(double in, double sl, double tp, bool isl = false, bool itp = false, string name = NULL, double vol = 0, string comment = "", bool set_comment = true) {
+        if (grid) isl = true;
+        if (name == NULL) name = _Symbol;
+        int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
+        double d = MathAbs(in - sl);
+        if ((comment == "" || comment == NULL) && (set_comment || grid))
+            comment = DoubleToString(d, digits);
+        if (!reverse)
+            return order(ORDER_TYPE_SELL, magicNumber, in, sl, tp, risk, martingale, martingaleRisk, slippage, isl, itp, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
         return order(ORDER_TYPE_BUY, magicNumber, Ask(name), tp, sl, risk, martingale, martingaleRisk, slippage, itp, isl, comment, name, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling);
     }
 
@@ -1517,7 +1543,7 @@ double BuySL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int st
         sl = iLow(symbol, timeframe, i) - dev * point;
     }
 
-    if (sltype == SL_AR) {
+    else if (sltype == SL_AR) {
         double sum = 0;
         for (int i = start; i < start + lookback; i++) {
             double high = iHigh(symbol, timeframe, i);
@@ -1528,7 +1554,7 @@ double BuySL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int st
         sl = price - (sum / lookback) - dev * point;
     }
 
-    if (sltype == SL_MR) {
+    else if (sltype == SL_MR) {
         double max = 0;
         for (int i = start; i < start + lookback; i++) {
             double high = iHigh(symbol, timeframe, i);
@@ -1559,7 +1585,7 @@ double SellSL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int s
         sl = iHigh(symbol, timeframe, i) + dev * point;
     }
 
-    if (sltype == SL_AR) {
+    else if (sltype == SL_AR) {
         double sum = 0;
         for (int i = start; i < start + lookback; i++) {
             double high = iHigh(symbol, timeframe, i);
@@ -1570,7 +1596,7 @@ double SellSL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int s
         sl = price + (sum / lookback) + dev * point;
     }
 
-    if (sltype == SL_MR) {
+    else if (sltype == SL_MR) {
         double max = 0;
         for (int i = start; i < start + lookback; i++) {
             double high = iHigh(symbol, timeframe, i);

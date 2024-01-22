@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.2"
+#property version     "1.3"
 #property description "A strategy using Linear Regression Candles and UT Bot Alerts"
 #property description "AUDCAD-15M  2019.01.01 - 2023.10.30"
 
@@ -18,6 +18,8 @@ input double UtbAtrCoef = 2; // UTB ATR Coefficient (Sensitivity)
 input int UtbAtrLen = 1; // UTB ATR Period
 
 input group "General"
+input double TPCoef = 1.0; // TP Coefficient
+input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 10; // SL Look Back
 input int SLDev = 100; // SL Deviation (Points)
 input bool CloseOrders = false; // Check For Closing Conditions
@@ -27,6 +29,7 @@ input bool Reverse = false; // Reverse Signal
 input group "Risk Management"
 input double Risk = 0.6; // Risk (%)
 input bool IgnoreSL = false; // Ignore SL
+input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
 input double TrailingStopLevel = 50; // Trailing Stop Level (%) (0: Disable)
 input double EquityDrawdownLimit = 0; // Equity Drawdown Limit (%) (0: Disable)
@@ -90,13 +93,9 @@ bool BuySignal() {
     if (!c) return false;
 
     double in = Ask();
-    int il = iLowest(NULL, 0, MODE_LOW, SLLookback);
-    double sl = Low(il) - SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = 0;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, true, DoubleToString(d, _Digits));
+    double sl = BuySL(SLType, SLLookback, in, SLDev);
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -117,13 +116,9 @@ bool SellSignal() {
     if (!c) return false;
 
     double in = Bid();
-    int ih = iHighest(NULL, 0, MODE_HIGH, SLLookback);
-    double sl = High(ih) + SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = 0;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, true, DoubleToString(d, _Digits));
+    double sl = SellSL(SLType, SLLookback, in, SLDev);
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -153,6 +148,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using Average Force, Andean Oscillator, and MACD"
 #property description "NZDCAD-30M  2019.01.01 - 2023.10.22"
 
@@ -34,6 +34,7 @@ input int MdSlow = 200; // MACD Slow
 
 input group "General"
 input double TPCoef = 1.0; // TP Coefficient
+input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 7; // SL Look Back
 input int SLDev = 60; // SL Deviation (Points)
 input bool Reverse = true; // Reverse Signal
@@ -133,13 +134,9 @@ bool BuySignal() {
     if (!(MD(2) < MD(1))) return false;
 
     double in = Ask();
-    int il = iLowest(NULL, 0, MODE_LOW, SLLookback, 1);
-    double sl = Low(il) - SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = in + TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.BuyOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double sl = BuySL(SLType, SLLookback, in, SLDev, 1);
+    double tp = in + TPCoef * MathAbs(in - sl);
+    ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -153,13 +150,9 @@ bool SellSignal() {
     if (!(MD(2) > MD(1))) return false;
 
     double in = Bid();
-    int ih = iHighest(NULL, 0, MODE_HIGH, SLLookback, 1);
-    double sl = High(ih) + SLDev * _Point;
-    double d = MathAbs(in - sl);
-    double tp = in - TPCoef * d;
-    bool isl = Grid ? true : IgnoreSL;
-
-    ea.SellOpen(sl, tp, isl, IgnoreTP, DoubleToString(d, _Digits));
+    double sl = SellSL(SLType, SLLookback, in, SLDev, 1);
+    double tp = in - TPCoef * MathAbs(in - sl);
+    ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
 }
 
@@ -172,6 +165,7 @@ int OnInit() {
     ea.risk = Risk * 0.01;
     ea.reverse = Reverse;
     ea.trailingStopLevel = TrailingStopLevel * 0.01;
+    ea.grid = Grid;
     ea.gridVolMult = GridVolMult;
     ea.gridTrailingStopLevel = GridTrailingStopLevel * 0.01;
     ea.gridMaxLvl = GridMaxLvl;
