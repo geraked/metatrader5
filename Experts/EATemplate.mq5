@@ -24,7 +24,8 @@ input bool CloseOnProfit = false; // Close Only On Profit
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 1.0; // Risk (%)
+input double Risk = 1.0; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = false; // Ignore SL
 input bool IgnoreTP = false; // Ignore TP
 input bool Trail = false; // Trailing Stop
@@ -123,7 +124,9 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
     EventSetTimer(TimerInterval);
 
@@ -162,7 +165,7 @@ void OnTick() {
         if (!OpenNewPos) return;
         if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
+        if ((Grid || !MultipleOpenPos) && ea.OPTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();

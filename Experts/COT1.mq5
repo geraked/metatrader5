@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2024, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.0"
+#property version     "1.1"
 #property description "A strategy using Commitments of Traders (COT) and Super Trend indicator"
 #property description "Multiple Symbols-Daily  2021.01.01 - 2024.01.14"
 
@@ -38,7 +38,8 @@ input int SLDev = 30; // SL Deviation (Points)
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 3.5; // Risk (%)
+input double Risk = 3.5; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = false; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -101,7 +102,7 @@ double ST(string symbol, int i = 0) {
         Print("Runtime error = ", GetLastError());
         return -1;
     }
-    if (CopyBuffer(handle, 0, 0, i + 1, B) <= 0) return -1;
+    if (CopyBuffer(handle, 2, 0, i + 1, B) <= 0) return -1;
     ArraySetAsSeries(B, true);
     return B[i];
 }
@@ -115,7 +116,7 @@ void CheckForSignal() {
     if (tc - signalLastCheck < SignalCheckInterval * 60) return;
     if (tc < StringToTime(tcd + OpenTime)) return;
     if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-    if (!MultipleOpenPos && ea.PosTotal() > 0) return;
+    if (!MultipleOpenPos && ea.OPTotal() > 0) return;
 
     signalLastCheck = tc;
     SSignal signals[];
@@ -129,9 +130,9 @@ void CheckForSignal() {
         string stype = signals[i].type;
 
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if (!MultipleOpenPos && ea.PosTotal() > 0) return;
+        if (!MultipleOpenPos && ea.OPTotal() > 0) return;
 
-        if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
+        if (ea.OPTotal(s) > 0) continue;
         if (hasDealCurrentWeek(ea.GetMagic(), s)) continue;
         if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
@@ -192,13 +193,16 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
+
+    if (RiskMode == RISK_FIXED_VOL) ea.risk = Risk;
+    if (News) fetchCalendarFromYear(NewsStartYear);
 
     if (!CotInit(CotGetReportType(CotPrimaryClass, CotPrimaryMode)))
         return INIT_FAILED;
     if (!CotInit(CotGetReportType(CotSecondaryClass, CotSecondaryMode)))
         return INIT_FAILED;
 
-    if (News) fetchCalendarFromYear(NewsStartYear);
     EventSetTimer(TimerInterval);
 
     return INIT_SUCCEEDED;
