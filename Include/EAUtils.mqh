@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.21"
+#property version   "1.22"
 
 #include <errordescription.mqh>
 
@@ -35,6 +35,7 @@ enum ENUM_SL {
 enum ENUM_RISK {
     RISK_DEFAULT, // Default
     RISK_FIXED_VOL, // Fixed Volume
+    RISK_MIN_AMOUNT, // Min Amount
     RISK_EQUITY = ACCOUNT_EQUITY, // % of Equity
     RISK_BALANCE = ACCOUNT_BALANCE, // % of Balance
     RISK_MARGIN_FREE = ACCOUNT_MARGIN_FREE, // % of Free Margin
@@ -301,21 +302,25 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
     double point = SymbolInfoDouble(name, SYMBOL_POINT);
     double tvl = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_LOSS);
     double tvp = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_PROFIT);
+    double volStep = SymbolInfoDouble(name, SYMBOL_VOLUME_STEP);
     double volMax = SymbolInfoDouble(name, SYMBOL_VOLUME_MAX);
     double volMin = SymbolInfoDouble(name, SYMBOL_VOLUME_MIN);
+    int volDigits = CountDigits(volStep);
     double vol = 0;
 
     if (balance == 0 && risk_mode == 0)
         balance = MathMin(AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_MARGIN_FREE));
-    if (balance == 0 && risk_mode > 1)
+    if (balance == 0 && risk_mode > 2)
         balance = AccountInfoDouble((ENUM_ACCOUNT_INFO_DOUBLE) ((int) risk_mode));
     if (sl == 0)
         sl = tp;
 
-    vol = (balance * risk) / MathAbs(in - sl) * point / tvl;
-
     if (risk_mode == RISK_FIXED_VOL)
         vol = risk;
+    else if (risk_mode == RISK_MIN_AMOUNT)
+        vol = AccountInfoDouble(ACCOUNT_EQUITY) / risk * volStep;
+    else
+        vol = (balance * risk) / MathAbs(in - sl) * point / tvl;
 
     if (martingale) {
         ulong ticket = getLatestTicket(magic);
@@ -331,7 +336,7 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
         }
     }
 
-    vol = NormalizeDouble(vol, 2);
+    vol = NormalizeDouble(vol, volDigits);
     if (vol > volMax) vol = volMax;
     if (vol < volMin) vol = volMin;
 
@@ -1951,6 +1956,16 @@ int ArraySearch(const T &arr[], T value) {
             return i;
     }
     return -1;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+int CountDigits(double val, int maxPrecision = 8) {
+    int digits = 0;
+    while(NormalizeDouble(val, digits) != NormalizeDouble(val, maxPrecision))
+        digits++;
+    return digits;
 }
 
 //+------------------------------------------------------------------+

@@ -125,7 +125,7 @@ int OnInit() {
     ea.filling = Filling;
     ea.riskMode = RiskMode;
 
-    if (RiskMode == RISK_FIXED_VOL) ea.risk = Risk;
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
     fillSymbols(symbols, MultipleSymbol, Symbols);
     ArrayResize(lastCandles, ArraySize(symbols));
