@@ -3,9 +3,10 @@
 //|                                          Copyright 2024, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2024, Geraked"
-#property link      "https://github.com/geraked"
-#property version   "1.0"
+#property copyright   "Copyright 2024, Geraked"
+#property link        "https://github.com/geraked"
+#property version     "1.0"
+#property description "K-Nearest Neighbors (K-NN) Classification Algorithm"
 
 #include <Generic/HashMap.mqh>
 
@@ -96,15 +97,18 @@ void CScaler::Fit(const matrix &X) {
 matrix CScaler::Transform(const matrix &X) {
     matrix XT = X;
     ulong i, j;
-    double x, std;
+    double x, d, std;
     for (i = 0; i < X.Rows(); i++) {
         for (j = 0; j < X.Cols(); j++) {
             x = X[i][j];
+            d = m_max[j] - m_min[j];
             std = MathSqrt(m_ss[j] / m_cnt);
+            if (d == 0) d = DBL_EPSILON;
+            if (std == 0) std = DBL_EPSILON;
             if (m_type == SCALER_01)
-                XT[i][j] = (x - m_min[j]) / (m_max[j] - m_min[j]);
+                XT[i][j] = (x - m_min[j]) / d;
             else if (m_type == SCALER_11)
-                XT[i][j] = (x - m_min[j]) / (m_max[j] - m_min[j]) * 2 - 1;
+                XT[i][j] = (x - m_min[j]) / d * 2 - 1;
             else if (m_type == SCALER_STD)
                 XT[i][j] = (x - m_mean[j]) / std;
             else
@@ -125,12 +129,13 @@ private:
     CScaler scaler;
     double calcDistance(vector &u, vector &v);
     double getMode(vector &u);
+    void sort(vector &u);
 public:
     CKnn(void);
     CKnn(int k, int window_size = 1000, ENUM_DISTANCE distance_type = DISTANCE_EUCLIDEAN, ENUM_SCALER scaler_type = SCALER_STD);
     void Init(ulong cols = 0);
     void Fit(const matrix &X, const vector &y);
-    vector Predict(const matrix &X);
+    vector Predict(const matrix &X, bool trace_print = false);
 };
 
 //+------------------------------------------------------------------+
@@ -195,7 +200,9 @@ double CKnn::calcDistance(vector &u, vector &v) {
     } else if (m_distance == DISTANCE_COSINE) {
         double u_norm = u.Norm(VECTOR_NORM_P, 2);
         double v_norm = v.Norm(VECTOR_NORM_P, 2);
-        double sim = u.Dot(v) / (u_norm * v_norm);
+        double u_v = u_norm * v_norm;
+        if (u_v == 0) u_v = DBL_EPSILON;
+        double sim = u.Dot(v) / u_v;
         dist = 1 - sim;
     }
     return dist;
@@ -227,7 +234,20 @@ double CKnn::getMode(vector &u) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-vector CKnn::Predict(const matrix &X) {
+void CKnn::sort(vector &u) {
+    double arr[];
+    ulong n = ArrayResize(arr, (int) u.Size());
+    for (ulong i = 0; i < n; i++)
+        arr[i] = u[i];
+    ArraySort(arr);
+    for (ulong i = 0; i < n; i++)
+        u[i] = arr[i];
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+vector CKnn::Predict(const matrix &X, bool trace_print = false) {
     vector y_pred(X.Rows());
     matrix X_scal = scaler.Transform(X);
     matrix X_window_scal = scaler.Transform(X_window);
@@ -242,12 +262,19 @@ vector CKnn::Predict(const matrix &X) {
             v = X_window_scal.Row(j);
             d_window[j] = calcDistance(u, v);
         }
+        if (trace_print) {
+            Print("***** KNN Predict: ");
+            Print("x = ", X.Row(i));
+        }
         for (j = 0; j < labels.Size(); j++) {
             i_min = d_window.ArgMin();
             labels[j] = y_window[i_min];
+            if (trace_print) PrintFormat("NN%2d: window_id = %5d  distance = %.8f  label = %.0f", j + 1, i_min, d_window[i_min], y_window[i_min]);
             d_window[i_min] = DBL_MAX;
         }
+        sort(labels);
         y_pred[i] = getMode(labels);
+        if (trace_print) PrintFormat("y = %.0f\n", y_pred[i]);
     }
     return y_pred;
 }
