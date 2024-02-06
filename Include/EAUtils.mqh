@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.22"
+#property version   "1.23"
 
 #include <errordescription.mqh>
 
@@ -29,7 +29,8 @@ enum ENUM_FILLING {
 enum ENUM_SL {
     SL_SWING, // Swing
     SL_AR, // Average Range
-    SL_MR // MAX Range
+    SL_MR, // MAX Range
+    SL_FIXED_POINT // Fixed Points
 };
 
 enum ENUM_RISK {
@@ -244,36 +245,46 @@ int Spread(string name = NULL) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double High(int i) {
-    return iHigh(_Symbol, PERIOD_CURRENT, i);
+double High(int i, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    double x = iHigh(symbol, timeframe, i);
+    if (x == 0) PrintFormat("Error (%s): #%d", __FUNCTION__, GetLastError());
+    return x;
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double Low(int i) {
-    return iLow(_Symbol, PERIOD_CURRENT, i);
+double Low(int i, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    double x = iLow(symbol, timeframe, i);
+    if (x == 0) PrintFormat("Error (%s): #%d", __FUNCTION__, GetLastError());
+    return x;
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double Open(int i) {
-    return iOpen(_Symbol, PERIOD_CURRENT, i);
+double Open(int i, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    double x = iOpen(symbol, timeframe, i);
+    if (x == 0) PrintFormat("Error (%s): #%d", __FUNCTION__, GetLastError());
+    return x;
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double Close(int i) {
-    return iClose(_Symbol, PERIOD_CURRENT, i);
+double Close(int i, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    double x = iClose(symbol, timeframe, i);
+    if (x == 0) PrintFormat("Error (%s): #%d", __FUNCTION__, GetLastError());
+    return x;
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-datetime Time(int i) {
-    return iTime(_Symbol, PERIOD_CURRENT, i);
+datetime Time(int i, string symbol = NULL, ENUM_TIMEFRAMES timeframe = 0) {
+    datetime x = iTime(symbol, timeframe, i);
+    if (x == 0) PrintFormat("Error (%s): #%d", __FUNCTION__, GetLastError());
+    return x;
 }
 
 //+------------------------------------------------------------------+
@@ -1889,6 +1900,10 @@ double BuySL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int st
         sl = price - max - dev * point;
     }
 
+    else if (sltype == SL_FIXED_POINT) {
+        sl = price - dev * point;
+    }
+
     sl = NormalizeDouble(sl, digits);
     return sl;
 }
@@ -1931,6 +1946,10 @@ double SellSL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int s
         sl = price + max + dev * point;
     }
 
+    else if (sltype == SL_FIXED_POINT) {
+        sl = price + dev * point;
+    }
+
     sl = NormalizeDouble(sl, digits);
     return sl;
 }
@@ -1966,6 +1985,22 @@ int CountDigits(double val, int maxPrecision = 8) {
     while(NormalizeDouble(val, digits) != NormalizeDouble(val, maxPrecision))
         digits++;
     return digits;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+double Ind(int handle, int i, int buffer_index = 0) {
+    double B[1];
+    if (handle <= 0) {
+        PrintFormat("Error (%s, handle): #%d", __FUNCTION__, GetLastError());
+        return -1;
+    }
+    if (CopyBuffer(handle, buffer_index, i, 1, B) != 1) {
+        PrintFormat("Error (%s, CopyBuffer): #%d", __FUNCTION__, GetLastError());
+        return -1;
+    }
+    return B[0];
 }
 
 //+------------------------------------------------------------------+
