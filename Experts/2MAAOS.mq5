@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using two Moving Averages and Andean Oscillator"
 #property description "Multiple Symbols(EURUSD, EURCAD, USDCAD)-4H  2019.01.01 - 2023.10.17"
 
@@ -39,7 +39,8 @@ input int MinPosInterval = 6; // Minimum New Position Interval
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 5.5; // Risk (%)
+input double Risk = 5.5; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = false; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -78,33 +79,19 @@ string symbols[];
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double MA(string symbol, int ma_period, int i = 0) {
-    int handle;
-    double B[];
-    handle = iMA(symbol, 0, ma_period, 0, MaMethod, MaPrice);
-    if (handle == INVALID_HANDLE) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, 0, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+double MA(string symbol, int ma_period, int i = -1) {
+    int handle = iMA(symbol, 0, ma_period, 0, MaMethod, MaPrice);
+    if (i == -1) return -1;
+    return Ind(handle, i);
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double AOS(string symbol, ENUM_AOS_BI bi = 0, int i = 0) {
-    int handle;
-    double B[];
-    handle = iCustom(symbol, 0, I_AOS, AosPeriod, AosSignalPeriod);
-    if (handle == INVALID_HANDLE) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, bi, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+double AOS(string symbol, ENUM_AOS_BI bi = 0, int i = -1) {
+    int handle = iCustom(symbol, 0, I_AOS, AosPeriod, AosSignalPeriod);
+    if (i == -1) return -1;
+    return Ind(handle, i, bi);
 }
 
 //+------------------------------------------------------------------+
@@ -113,7 +100,7 @@ double AOS(string symbol, ENUM_AOS_BI bi = 0, int i = 0) {
 void CheckForSignal() {
     if (!OpenNewPos) return;
     if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-    if (!MultipleOpenPos && ea.PosTotal() > 0) return;
+    if (!MultipleOpenPos && ea.OPTotal() > 0) return;
 
     int n = ArraySize(symbols);
     for (int i = 0; i < n; i++) {
@@ -122,7 +109,7 @@ void CheckForSignal() {
         double point = SymbolInfoDouble(s, SYMBOL_POINT);
         int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
 
-        if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
+        if (ea.OPTotal(s) > 0) continue;
         if (hasDealRecently(ea.GetMagic(), s, MinPosInterval)) continue;
         if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
@@ -181,11 +168,21 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
     fillSymbols(symbols, MultipleSymbol, Symbols);
-    EventSetTimer(TimerInterval);
 
+    int n = ArraySize(symbols);
+    for (int i = 0; i < n; i++) {
+        string s = symbols[i];
+        AOS(s);
+        MA(s, FastMaPeriod);
+        MA(s, SlowMaPeriod);
+    }
+
+    EventSetTimer(TimerInterval);
     return INIT_SUCCEEDED;
 }
 

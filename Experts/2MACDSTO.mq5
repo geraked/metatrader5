@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using two MACDs and Stochastic Oscillator"
 #property description "NZDUSD-3H  2020.01.01 - 2023.10.08"
 
@@ -30,7 +30,8 @@ input int SLDev = 60; // SL Deviation (Points)
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 2.25; // Risk (%)
+input double Risk = 2.25; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = true; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -121,7 +122,9 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
 
     STO_handle = iStochastic(NULL, 0, StoKPeriod, StoDPeriod, StoSlowing, StoMethod, StoPrice);
@@ -178,7 +181,7 @@ void OnTick() {
         if (!OpenNewPos) return;
         if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
+        if ((Grid || !MultipleOpenPos) && ea.OPTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2024, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.1"
+#property version     "1.2"
 #property description "A strategy using Commitments of Traders (COT) and Super Trend indicator"
 #property description "Multiple Symbols-Daily  2021.01.01 - 2024.01.14"
 
@@ -95,16 +95,9 @@ struct SSignal {
 //|                                                                  |
 //+------------------------------------------------------------------+
 double ST(string symbol, int i = 0) {
-    int handle;
-    double B[];
-    handle = iCustom(symbol, IndTimeframe, I_ST, StPeriod, StMultiplier, false);
-    if (handle < 0) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, 2, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+    int handle = iCustom(symbol, IndTimeframe, I_ST, StPeriod, StMultiplier, false);
+    if (i == -1) return -1;
+    return Ind(handle, i, 2);
 }
 
 //+------------------------------------------------------------------+

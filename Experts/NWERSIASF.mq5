@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.3"
+#property version     "1.4"
 #property description "A strategy using Nadaraya-Watson Envelope, RSI, and ATR Stop Loss Finder indicators"
 #property description "Multiple Symbols(USDCAD, AUDUSD, EURCHF)-2H  2019.01.01 - 2023.10.22"
 
@@ -35,7 +35,8 @@ input int MinPosInterval = 4; // Minimum New Position Interval
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 1.3; // Risk (%)
+input double Risk = 1.2; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = false; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -74,49 +75,28 @@ string symbols[];
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double NWE(string symbol, int bi = 0, int i = 0) {
-    int handle;
-    double B[];
-    handle = iCustom(symbol, 0, I_NWE, NweBandWidth, NweMultiplier, NweWindowSize);
-    if (handle == INVALID_HANDLE) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, bi, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+double NWE(string symbol, int bi = 0, int i = -1) {
+    int handle = iCustom(symbol, 0, I_NWE, NweBandWidth, NweMultiplier, NweWindowSize);
+    if (i == -1) return -1;
+    return Ind(handle, i, bi);
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double RSI(string symbol, int i = 0) {
-    int handle;
-    double B[];
-    handle = iRSI(symbol, 0, RsiLength, PRICE_CLOSE);
-    if (handle == INVALID_HANDLE) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, 0, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+double RSI(string symbol, int i = -1) {
+    int handle = iRSI(symbol, 0, RsiLength, PRICE_CLOSE);
+    if (i == -1) return -1;
+    return Ind(handle, i);
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-double ASF(string symbol, int bi = 0, int i = 0) {
-    int handle;
-    double B[];
-    handle = iCustom(symbol, 0, I_ASF, AsfLength, AsfMultiplier);
-    if (handle == INVALID_HANDLE) {
-        Print("Runtime error = ", GetLastError());
-        return -1;
-    }
-    if (CopyBuffer(handle, bi, 0, i + 1, B) <= 0) return -1;
-    ArraySetAsSeries(B, true);
-    return B[i];
+double ASF(string symbol, int bi = 0, int i = -1) {
+    int handle = iCustom(symbol, 0, I_ASF, AsfLength, AsfMultiplier);
+    if (i == -1) return -1;
+    return Ind(handle, i, bi);
 }
 
 
@@ -135,14 +115,14 @@ void CheckForSignal() {
         double point = SymbolInfoDouble(s, SYMBOL_POINT);
         int digits = (int) SymbolInfoInteger(s, SYMBOL_DIGITS);
 
-        if (positionsTotalMagic(ea.GetMagic(), s) > 0) continue;
+        if (ea.OPTotal(s) > 0) continue;
         if (hasDealRecently(ea.GetMagic(), s, MinPosInterval)) continue;
         if (SpreadLimit != -1 && Spread(s) > SpreadLimit) continue;
 
-        double c1 = iClose(s, 0, 1);
-        double o1 = iOpen(s, 0, 1);
-        double h2 = iHigh(s, 0, 2);
-        double l2 = iLow(s, 0, 2);
+        double c1 = Close(1, s);
+        double o1 = Open(1, s);
+        double h2 = High(2, s);
+        double l2 = Low(2, s);
         double up1 = NWE(s, 0, 1);
         double up2 = NWE(s, 0, 2);
         double dn1 = NWE(s, 1, 1);
@@ -195,11 +175,21 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
     fillSymbols(symbols, MultipleSymbol, Symbols);
-    EventSetTimer(TimerInterval);
 
+    int n = ArraySize(symbols);
+    for (int i = 0; i < n; i++) {
+        string s = symbols[i];
+        NWE(s);
+        RSI(s);
+        ASF(s);
+    }
+
+    EventSetTimer(TimerInterval);
     return INIT_SUCCEEDED;
 }
 

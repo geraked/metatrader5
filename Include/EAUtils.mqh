@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.23"
+#property version   "1.24"
 
 #include <errordescription.mqh>
 
@@ -29,7 +29,7 @@ enum ENUM_FILLING {
 enum ENUM_SL {
     SL_SWING, // Swing
     SL_AR, // Average Range
-    SL_MR, // MAX Range
+    SL_MR, // Max Range
     SL_FIXED_POINT // Fixed Points
 };
 
@@ -186,7 +186,7 @@ public:
     }
 
     void CheckForTrail() {
-        checkForTrail(magicNumber, trailingStopLevel, gridTrailingStopLevel);
+        checkForTrail(magicNumber, trailingStopLevel, gridTrailingStopLevel, slippage, nRetry, mRetry, filling);
     }
 
     void CheckForGrid() {
@@ -310,9 +310,8 @@ ulong calcMagic(int magicSeed = 1) {
 //+------------------------------------------------------------------+
 double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool martingale = false, double martingaleRisk = 0.04, ulong magic = 0, string name = NULL, double balance = 0, ENUM_RISK risk_mode = 0) {
     name = name == NULL ? _Symbol : name;
+    double tv = GetTickValue(name);
     double point = SymbolInfoDouble(name, SYMBOL_POINT);
-    double tvl = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_LOSS);
-    double tvp = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_PROFIT);
     double volStep = SymbolInfoDouble(name, SYMBOL_VOLUME_STEP);
     double volMax = SymbolInfoDouble(name, SYMBOL_VOLUME_MAX);
     double volMin = SymbolInfoDouble(name, SYMBOL_VOLUME_MIN);
@@ -331,18 +330,21 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
     else if (risk_mode == RISK_MIN_AMOUNT)
         vol = AccountInfoDouble(ACCOUNT_EQUITY) / risk * volStep;
     else
-        vol = (balance * risk) / MathAbs(in - sl) * point / tvl;
+        vol = (balance * risk) / MathAbs(in - sl) * point / tv;
 
     if (martingale) {
         ulong ticket = getLatestTicket(magic);
         if (ticket != 0) {
+            PositionSelectByTicket(ticket);
+            HistorySelectByPosition(PositionGetInteger(POSITION_IDENTIFIER));
+            HistoryDealSelect(ticket);
             double lprofit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
             if (lprofit < 0) {
                 double lin = HistoryDealGetDouble(ticket, DEAL_PRICE);
                 double lsl = HistoryDealGetDouble(ticket, DEAL_SL);
                 double lvol = HistoryDealGetDouble(ticket, DEAL_VOLUME);
                 vol = 2 * MathAbs(lin - lsl) * lvol / MathAbs(in - tp);
-                vol = MathMin(vol, (balance * martingaleRisk) / MathAbs(in - sl) * point / tvl);
+                vol = MathMin(vol, (balance * martingaleRisk) / MathAbs(in - sl) * point / tv);
             }
         }
     }
@@ -359,6 +361,13 @@ double calcVolume(double in, double sl, double risk = 0.01, double tp = 0, bool 
 //+------------------------------------------------------------------+
 double calcVolume(double vol, string symbol = NULL) {
     return calcVolume(1, 1, vol, 0, false, 0, 0, symbol, 0, RISK_FIXED_VOL);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+double calcVolume(ENUM_RISK risk_mode, double risk, double in = 0, double sl = 0, string symbol = NULL) {
+    return calcVolume(in, sl, risk, 0, false, 0, 0, symbol, 0, risk_mode);
 }
 
 //+------------------------------------------------------------------+
@@ -388,7 +397,7 @@ bool IsFillingTypeAllowed(string symbol, ENUM_ORDER_TYPE_FILLING fill_type) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT, ENUM_RISK risk_mode = RISK_DEFAULT) {
+bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double risk = 0.01, bool martingale = false, double martingaleRisk = 0.04, int slippage = 30, bool isl = false, bool itp = false, string comment = "", string name = NULL, double vol = 0, int nRetry = 5, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT, ENUM_RISK risk_mode = RISK_DEFAULT) {
     name = name == NULL ? _Symbol : name;
     int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
     int err;
@@ -455,6 +464,10 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
 
     if (!OrderCheck(req, cres)) {
         if (cres.retcode == TRADE_RETCODE_MARKET_CLOSED) return false;
+        if (cres.retcode == TRADE_RETCODE_NO_MONEY) {
+            PrintFormat("Warning: %s %s %.2f [No money]", name, EnumToString(ot), vol);
+            return false;
+        }
         if (cres.retcode == TRADE_RETCODE_INVALID_FILL && filling == FILLING_DEFAULT) {
             if (req.type_filling != ORDER_FILLING_FOK)
                 req.type_filling = ORDER_FILLING_FOK;
@@ -510,7 +523,7 @@ bool order(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool pendingOrder(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double vol = 0, double stoplimit = 0, datetime expiration = 0, ENUM_ORDER_TYPE_TIME timeType = 0, string symbol = NULL, string comment = "", ENUM_FILLING filling = FILLING_DEFAULT, ENUM_RISK risk_mode = RISK_DEFAULT, double risk = 0.01, int slippage = 30, int nRetry = 3, int mRetry = 2000) {
+bool pendingOrder(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, double tp = 0, double vol = 0, double stoplimit = 0, datetime expiration = 0, ENUM_ORDER_TYPE_TIME timeType = 0, string symbol = NULL, string comment = "", ENUM_FILLING filling = FILLING_DEFAULT, ENUM_RISK risk_mode = RISK_DEFAULT, double risk = 0.01, int slippage = 30, int nRetry = 5, int mRetry = 2000) {
     if (symbol == NULL) symbol = _Symbol;
     int digits = (int) SymbolInfoInteger(symbol, SYMBOL_DIGITS);
     int err;
@@ -558,6 +571,10 @@ bool pendingOrder(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, dou
 
     if (!OrderCheck(req, cres)) {
         if (cres.retcode == TRADE_RETCODE_MARKET_CLOSED) return false;
+        if (cres.retcode == TRADE_RETCODE_NO_MONEY) {
+            PrintFormat("Warning: %s %s %.2f [No money]", symbol, EnumToString(ot), vol);
+            return false;
+        }
         if (cres.retcode == TRADE_RETCODE_INVALID_FILL && filling == FILLING_DEFAULT) {
             if (req.type_filling != ORDER_FILLING_IOC)
                 req.type_filling = ORDER_FILLING_IOC;
@@ -603,7 +620,7 @@ bool pendingOrder(ENUM_ORDER_TYPE ot, ulong magic, double in, double sl = 0, dou
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string name = NULL, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
+void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string name = NULL, int nRetry = 5, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     int total = PositionsTotal();
     for (int i = total - 1; i >= 0; i--) {
         ulong pticket = PositionGetTicket(i);
@@ -620,7 +637,7 @@ void closeOrders(ENUM_POSITION_TYPE pt, ulong magic, int slippage = 30, string n
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void closePendingOrders(ENUM_ORDER_TYPE ot, ulong magic, string name = NULL, int nRetry = 3, int mRetry = 2000) {
+void closePendingOrders(ENUM_ORDER_TYPE ot, ulong magic, string name = NULL, int nRetry = 5, int mRetry = 2000) {
     int total = OrdersTotal();
     for (int i = total - 1; i >= 0; i--) {
         ulong oticket = OrderGetTicket(i);
@@ -637,7 +654,7 @@ void closePendingOrders(ENUM_ORDER_TYPE ot, ulong magic, string name = NULL, int
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
+bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 5, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     int err;
 
     if (!PositionSelectByTicket(ticket)) {
@@ -739,7 +756,7 @@ bool closeOrder(ulong ticket, int slippage = 30, int nRetry = 3, int mRetry = 20
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-bool closePendingOrder(ulong ticket, int nRetry = 3, int mRetry = 2000) {
+bool closePendingOrder(ulong ticket, int nRetry = 5, int mRetry = 2000) {
     int err;
 
     MqlTradeRequest req = {};
@@ -918,13 +935,13 @@ int ordersTickets(ulong magic, ulong &arr[], string name = NULL) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-int positionsVolumes(ulong magic, double &arr[], string name = NULL) {
+int positionsDouble(ENUM_POSITION_PROPERTY_DOUBLE prop, ulong magic, double &arr[], string name = NULL) {
     ulong tickets[];
     int n = positionsTickets(magic, tickets, name);
     ArrayResize(arr, n);
     for (int i = 0; i < n; i++) {
         PositionSelectByTicket(tickets[i]);
-        arr[i] = PositionGetDouble(POSITION_VOLUME);
+        arr[i] = PositionGetDouble(prop);
     }
     return n;
 }
@@ -932,39 +949,75 @@ int positionsVolumes(ulong magic, double &arr[], string name = NULL) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
+int positionsVolumes(ulong magic, double &arr[], string name = NULL) {
+    return positionsDouble(POSITION_VOLUME, magic, arr, name);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 int positionsPrices(ulong magic, double &arr[], string name = NULL) {
-    ulong tickets[];
-    int n = positionsTickets(magic, tickets, name);
-    ArrayResize(arr, n);
-    for (int i = 0; i < n; i++) {
-        PositionSelectByTicket(tickets[i]);
-        arr[i] = PositionGetDouble(POSITION_PRICE_OPEN);
+    return positionsDouble(POSITION_PRICE_OPEN, magic, arr, name);
+}
+
+//+------------------------------------------------------------------+
+//| Sum of swap, commission, fee                                     |
+//+------------------------------------------------------------------+
+double calcCostByTicket(ulong ticket) {
+    if (!PositionSelectByTicket(ticket)) {
+        int err = GetLastError();
+        PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        return 0;
     }
-    return n;
+    double pswap = PositionGetDouble(POSITION_SWAP);
+    double pcomm = 0;
+    double pfee = 0;
+    HistorySelectByPosition(PositionGetInteger(POSITION_IDENTIFIER));
+    HistoryDealSelect(ticket);
+    if (!HistoryDealGetDouble(ticket, DEAL_FEE, pfee) || !HistoryDealGetDouble(ticket, DEAL_COMMISSION, pcomm)) {
+        pcomm = 0;
+        pfee = 0;
+        int err = GetLastError();
+        if (err != ERR_TRADE_DEAL_NOT_FOUND) {
+            PrintFormat("%s error #%d : %s (ticket=%d)", __FUNCTION__, err, ErrorDescription(err), ticket);
+        }
+    }
+    return -(pcomm + pswap + pfee);
 }
 
 //+------------------------------------------------------------------+
 //| Sum of swap, commission, fee                                     |
 //+------------------------------------------------------------------+
 double calcCost(ulong magic, string name = NULL) {
-    double swap = 0;
-    double comm = 0;
-    double fee = 0;
-    int total = PositionsTotal();
-    for (int i = 0; i < total; i++) {
-        ulong pticket = PositionGetTicket(i);
-        ulong pmagic = PositionGetInteger(POSITION_MAGIC);
-        string psymbol = PositionGetString(POSITION_SYMBOL);
-        if (pmagic != magic) continue;
-        if (name != NULL && psymbol != name) continue;
-        double pswap = PositionGetDouble(POSITION_SWAP);
-        double pcomm = HistoryDealGetDouble(pticket, DEAL_COMMISSION);
-        double pfee = HistoryDealGetDouble(pticket, DEAL_FEE);
-        swap += pswap;
-        comm += pcomm;
-        fee += pfee;
+    double cost = 0;
+    ulong tickets[];
+    int n = positionsTickets(magic, tickets, name);
+    for (int i = 0; i < n; i++) {
+        cost += calcCostByTicket(tickets[i]);
     }
-    return -(comm + swap + fee);
+    return cost;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+double calcPriceByTicket(ulong ticket, double target) {
+    if (!PositionSelectByTicket(ticket)) {
+        int err = GetLastError();
+        PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+        return 0;
+    }
+    string symbol = PositionGetString(POSITION_SYMBOL);
+    double tv = GetTickValue(symbol);
+    double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+    int digits = (int) SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+    double op = PositionGetDouble(POSITION_PRICE_OPEN);
+    double vol = PositionGetDouble(POSITION_VOLUME);
+    ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE) PositionGetInteger(POSITION_TYPE);
+    bool isBuy = ptype == POSITION_TYPE_BUY;
+    double line = isBuy ? (target + tv * vol * op / point) / (tv * vol / point) : (target - tv * vol * op / point) / (- tv * vol / point);
+    line = NormalizeDouble(line, digits);
+    return line;
 }
 
 //+------------------------------------------------------------------+
@@ -972,7 +1025,7 @@ double calcCost(ulong magic, string name = NULL) {
 //+------------------------------------------------------------------+
 double calcPrice(ulong magic, double target, double newOp = 0, double newVol = 0, string name = NULL) {
     name = name == NULL ? _Symbol : name;
-    double tvp = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_PROFIT);
+    double tv = GetTickValue(name);
     double point = SymbolInfoDouble(name, SYMBOL_POINT);
     int digits = (int) SymbolInfoInteger(name, SYMBOL_DIGITS);
 
@@ -995,7 +1048,7 @@ double calcPrice(ulong magic, double target, double newOp = 0, double newVol = 0
     sum_vol_op += newVol * newOp;
     sum_vol += newVol;
 
-    double line = isBuy ? (target + tvp * sum_vol_op / point) / (tvp * sum_vol / point) : (target - tvp * sum_vol_op / point) / (- tvp * sum_vol / point);
+    double line = isBuy ? (target + tv * sum_vol_op / point) / (tv * sum_vol / point) : (target - tv * sum_vol_op / point) / (- tv * sum_vol / point);
     line = NormalizeDouble(line, digits);
 
     return line;
@@ -1004,9 +1057,16 @@ double calcPrice(ulong magic, double target, double newOp = 0, double newVol = 0
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
+double calcPrice(ulong magic, double target, string name = NULL) {
+    return calcPrice(magic, target, 0, 0, name);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 double calcProfit(ulong magic, double target, string name = NULL) {
     name = name == NULL ? _Symbol : name;
-    double tvp = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_VALUE_PROFIT);
+    double tv = GetTickValue(name);
     double point = SymbolInfoDouble(name, SYMBOL_POINT);
 
     ulong tickets[];
@@ -1020,7 +1080,7 @@ double calcProfit(ulong magic, double target, string name = NULL) {
         ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE) PositionGetInteger(POSITION_TYPE);
         bool isBuy = ptype == POSITION_TYPE_BUY;
         double d = isBuy ? target - op : op - target;
-        prof += vol * tvp * (d / point);
+        prof += vol * tv * (d / point);
     }
 
     return prof;
@@ -1030,23 +1090,20 @@ double calcProfit(ulong magic, double target, string name = NULL) {
 //|                                                                  |
 //+------------------------------------------------------------------+
 double getProfit(ulong magic, string name = NULL) {
-    name = name == NULL ? _Symbol : name;
     ulong tickets[];
     int n = positionsTickets(magic, tickets, name);
     double prof = 0;
-
     for (int i = 0; i < n; i++) {
         PositionSelectByTicket(tickets[i]);
         prof += PositionGetDouble(POSITION_PROFIT);
     }
-
     return prof;
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0.4) {
+void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0.4, int slippage = 30, int nRetry = 5, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     int minPoints = 30;
     MqlTradeRequest req;
     MqlTradeResult res;
@@ -1054,6 +1111,7 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
     int total = PositionsTotal();
     for (int i = total - 1; i >= 0; i--) {
         ulong pticket = PositionGetTicket(i);
+        if (!pticket) continue;
         string psymbol = PositionGetString(POSITION_SYMBOL);
         double ppoint = SymbolInfoDouble(psymbol, SYMBOL_POINT);
         int pdigits = (int) SymbolInfoInteger(psymbol, SYMBOL_DIGITS);
@@ -1061,6 +1119,7 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
         double pin = PositionGetDouble(POSITION_PRICE_OPEN);
         double psl = PositionGetDouble(POSITION_SL);
         double ptp = PositionGetDouble(POSITION_TP);
+        double pprof = PositionGetDouble(POSITION_PROFIT);
         double pd = StringToDouble(PositionGetString(POSITION_COMMENT));
         ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE) PositionGetInteger(POSITION_TYPE);
         ENUM_SYMBOL_TRADE_MODE pstm = (ENUM_SYMBOL_TRADE_MODE) SymbolInfoInteger(psymbol, SYMBOL_TRADE_MODE);
@@ -1068,6 +1127,15 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
         if (pmagic != magic) continue;
         if (pd == 0) continue;
         if (pstm == SYMBOL_TRADE_MODE_DISABLED || pstm == SYMBOL_TRADE_MODE_CLOSEONLY) continue;
+
+        ZeroMemory(req);
+        ZeroMemory(res);
+        req.action = TRADE_ACTION_SLTP;
+        req.position = pticket;
+        req.symbol = psymbol;
+        req.magic = pmagic;
+        req.sl = psl;
+        req.tp = ptp;
 
         ulong tickets[];
         int n = positionsTickets(pmagic, tickets, psymbol);
@@ -1077,35 +1145,29 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
             if (StringToDouble(PositionGetString(POSITION_COMMENT))) k++;
         }
 
-        double sl;
-        double cost = calcCost(pmagic, psymbol);
-        double brkeven = calcPrice(pmagic, cost, 0, 0, psymbol);
-
         if (n == 1 || k > 1) {
             if (stopLevel == 0) continue;
 
-            ZeroMemory(req);
-            ZeroMemory(res);
-            req.action = TRADE_ACTION_SLTP;
-            req.position = pticket;
-            req.symbol = psymbol;
-            req.magic = pmagic;
-            req.sl = psl;
-            req.tp = ptp;
+            double sl;
+            double cost = MathMax(calcCostByTicket(pticket), 0);
+            double brkeven = calcPriceByTicket(pticket, cost);
 
             if (ptype == POSITION_TYPE_BUY) {
                 double h = Bid(psymbol);
                 if (h <= pin) continue;
                 double d = h - pin;
 
-                if (k > 1)
-                    sl = pin + d - stopLevel * pd + minPoints * ppoint;
-                else
-                    sl = MathMax(pin, brkeven) + d - stopLevel * pd;
+                sl = MathMax(pin, brkeven) + d - stopLevel * pd;
 
                 sl = NormalizeDouble(sl, pdigits);
                 if (sl < pin) continue;
-                if (psl != 0 && (psl >= sl || sl > Bid(psymbol))) continue;
+                if (psl != 0 && psl >= sl) continue;
+                if (!(Bid(psymbol) - sl >= minPoints * ppoint)) {
+                    if (pprof - cost > 0)
+                        closeOrder(pticket, slippage, nRetry, mRetry, filling);
+                    continue;
+                }
+
                 req.sl = sl;
             }
 
@@ -1114,18 +1176,23 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
                 if (l >= pin) continue;
                 double d = pin - l;
 
-                if (k > 1)
-                    sl = pin - d + stopLevel * pd - minPoints * ppoint;
-                else
-                    sl = MathMin(pin, brkeven) - d + stopLevel * pd;
+                sl = MathMin(pin, brkeven) - d + stopLevel * pd;
 
                 sl = NormalizeDouble(sl, pdigits);
                 if (sl > pin) continue;
-                if (psl != 0 && (psl <= sl || sl < Ask(psymbol))) continue;
+                if (psl != 0 && psl <= sl) continue;
+                if (!(sl - Ask(psymbol) >= minPoints * ppoint)) {
+                    if (pprof - cost > 0)
+                        closeOrder(pticket, slippage, nRetry, mRetry, filling);
+                    continue;
+                }
+
                 req.sl = sl;
             }
 
             if (!OrderSend(req, res)) {
+                if (res.retcode == TRADE_RETCODE_INVALID_STOPS && pprof - cost > 0)
+                    if (closeOrder(pticket, slippage, nRetry, mRetry, filling)) continue;
                 int err = GetLastError();
                 PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
             }
@@ -1133,6 +1200,11 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
 
         else {
             if (gridStopLevel == 0) continue;
+
+            double sl;
+            double cost = MathMax(calcCost(pmagic, psymbol), 0);
+            double brkeven = calcPrice(pmagic, cost, 0, 0, psymbol);
+            double profit = getProfit(pmagic, psymbol);
 
             for (int j = 0; j < n; j++) {
                 PositionSelectByTicket(tickets[j]);
@@ -1149,67 +1221,60 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
                 double h = Bid(psymbol);
                 if (h <= per_target) continue;
                 double d = h - per_target;
+
                 sl = brkeven + d;
                 sl = NormalizeDouble(sl, pdigits);
-                if (!(Bid(psymbol) - sl >= minPoints * ppoint)) continue;
                 if (psl != 0 && psl >= sl) continue;
 
-                for (int j = 0; j < n; j++) {
-                    PositionSelectByTicket(tickets[j]);
-                    ZeroMemory(req);
-                    ZeroMemory(res);
-                    req.action = TRADE_ACTION_SLTP;
-                    req.position = tickets[j];
-                    req.symbol = psymbol;
-                    req.magic = pmagic;
-                    req.sl = sl;
-                    req.tp = ptp;
-
-                    if (pticket == tickets[j]) {
-                        if (!OrderSend(req, res)) {
-                            int err = GetLastError();
-                            PrintFormat("%s (grid, long) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                        }
-                    } else {
-                        if (!OrderSendAsync(req, res)) {
-                            int err = GetLastError();
-                            PrintFormat("%s (grid, long) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                        }
+                if (!(Bid(psymbol) - sl >= minPoints * ppoint)) {
+                    if (profit - cost > 0) {
+                        closeOrders(ptype, pmagic, slippage, psymbol, nRetry, mRetry, filling);
+                        Sleep(2000);
                     }
+                    continue;
                 }
+
+                req.sl = sl;
             }
 
             else if (ptype == POSITION_TYPE_SELL) {
                 double l = Ask(psymbol);
                 if (l >= per_target) continue;
                 double d = per_target - l;
+
                 sl = brkeven - d;
                 sl = NormalizeDouble(sl, pdigits);
-                if (!(sl - Ask(psymbol) >= minPoints * ppoint)) continue;
                 if (psl != 0 && psl <= sl) continue;
 
-                for (int j = 0; j < n; j++) {
-                    PositionSelectByTicket(tickets[j]);
-                    ZeroMemory(req);
-                    ZeroMemory(res);
-                    req.action = TRADE_ACTION_SLTP;
-                    req.position = tickets[j];
-                    req.symbol = psymbol;
-                    req.magic = pmagic;
-                    req.sl = sl;
-                    req.tp = ptp;
-
-                    if (pticket == tickets[j]) {
-                        if (!OrderSend(req, res)) {
-                            int err = GetLastError();
-                            PrintFormat("%s (grid, short) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                        }
-                    } else {
-                        if (!OrderSendAsync(req, res)) {
-                            int err = GetLastError();
-                            PrintFormat("%s (grid, short) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                        }
+                if (!(sl - Ask(psymbol) >= minPoints * ppoint)) {
+                    if (profit - cost > 0) {
+                        closeOrders(ptype, pmagic, slippage, psymbol, nRetry, mRetry, filling);
+                        Sleep(2000);
                     }
+                    continue;
+                }
+
+                req.sl = sl;
+            }
+
+            if (!OrderSend(req, res)) {
+                if (res.retcode == TRADE_RETCODE_INVALID_STOPS && profit - cost > 0) {
+                    closeOrders(ptype, pmagic, slippage, psymbol, nRetry, mRetry, filling);
+                    Sleep(2000);
+                    continue;
+                }
+                int err = GetLastError();
+                PrintFormat("%s (grid) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
+                continue;
+            }
+
+            for (int j = 0; j < n; j++) {
+                if (tickets[j] == pticket) continue;
+                ZeroMemory(res);
+                req.position = tickets[j];
+                if (!OrderSendAsync(req, res)) {
+                    int err = GetLastError();
+                    PrintFormat("%s (grid) error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
                 }
             }
 
@@ -1220,19 +1285,23 @@ void checkForTrail(ulong magic, double stopLevel = 0.5, double gridStopLevel = 0
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slippage = 30, int nRetry = 3, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT) {
+void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slippage = 30, int nRetry = 5, int mRetry = 2000, bool news = false, ENUM_NEWS_IMPORTANCE newsImportance = NEWS_IMPORTANCE_MEDIUM, int newsMinsBefore = 60, int newsMinsAfter = 60, ENUM_FILLING filling = FILLING_DEFAULT) {
     int minPoints = 30;
+    MqlTradeRequest req;
+    MqlTradeResult res;
+
     int total = PositionsTotal();
     for (int i = total - 1; i >= 0; i--) {
         ulong pticket = PositionGetTicket(i);
         ulong pmagic = PositionGetInteger(POSITION_MAGIC);
         string psymbol = PositionGetString(POSITION_SYMBOL);
+        double ptv = GetTickValue(psymbol);
         datetime ptime = (datetime) PositionGetInteger(POSITION_TIME);
         double ppoint = SymbolInfoDouble(psymbol, SYMBOL_POINT);
-        double ptvl = SymbolInfoDouble(psymbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
         double pin = PositionGetDouble(POSITION_PRICE_OPEN);
         double pd = StringToDouble(PositionGetString(POSITION_COMMENT));
         double psl = PositionGetDouble(POSITION_SL);
+        double ptp = PositionGetDouble(POSITION_TP);
         double pvol = PositionGetDouble(POSITION_VOLUME);
         ENUM_POSITION_TYPE ptype = (ENUM_POSITION_TYPE) PositionGetInteger(POSITION_TYPE);
         ENUM_SYMBOL_TRADE_MODE pstm = (ENUM_SYMBOL_TRADE_MODE) SymbolInfoInteger(psymbol, SYMBOL_TRADE_MODE);
@@ -1253,15 +1322,21 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
         positionsPrices(pmagic, prices, psymbol);
         double lastPrice = ptype == POSITION_TYPE_BUY ? prices[ArrayMinimum(prices)] : prices[ArrayMaximum(prices)];
 
-        MqlTradeRequest req;
-        MqlTradeResult res;
         double lvl, tp;
-
         double vol = calcVolume(lastVol * volCoef, psymbol);
-        double loss = pvol * ptvl * (pd / ppoint);
+        double loss = pvol * ptv * (pd / ppoint);
         double target_prof = loss;
         double cost = calcCost(pmagic, psymbol);
         if (cost > 0) target_prof += cost;
+
+        ZeroMemory(req);
+        ZeroMemory(res);
+        req.action = TRADE_ACTION_SLTP;
+        req.position = pticket;
+        req.symbol = psymbol;
+        req.magic = pmagic;
+        req.sl = psl;
+        req.tp = ptp;
 
         if (ptype == POSITION_TYPE_BUY) {
             if (MathAbs(lastPrice - Ask(psymbol)) < minPoints * ppoint)
@@ -1279,24 +1354,7 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
 
             if (!order(ORDER_TYPE_BUY, pmagic, Ask(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling)) continue;
 
-            for (int j = 0; j < n; j++) {
-                PositionSelectByTicket(tickets[j]);
-                ZeroMemory(req);
-                ZeroMemory(res);
-                req.action = TRADE_ACTION_SLTP;
-                req.position = tickets[j];
-                req.symbol = psymbol;
-                req.magic = pmagic;
-                req.sl = psl;
-                req.tp = tp;
-
-                if (PositionGetDouble(POSITION_TP) == req.tp && PositionGetDouble(POSITION_SL) == req.sl) continue;
-
-                if (!OrderSendAsync(req, res)) {
-                    int err = GetLastError();
-                    PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                }
-            }
+            req.tp = tp;
         }
 
         else if (ptype == POSITION_TYPE_SELL) {
@@ -1315,32 +1373,27 @@ void checkForGrid(ulong magic, double risk, double volCoef, int maxLvl, int slip
 
             if (!order(ORDER_TYPE_SELL, pmagic, Bid(psymbol), psl, tp, risk, false, 0, slippage, false, false, "", psymbol, vol, nRetry, mRetry, news, newsImportance, newsMinsBefore, newsMinsAfter, filling)) continue;
 
-            for (int j = 0; j < n; j++) {
-                PositionSelectByTicket(tickets[j]);
-                ZeroMemory(req);
-                ZeroMemory(res);
-                req.action = TRADE_ACTION_SLTP;
-                req.position = tickets[j];
-                req.symbol = psymbol;
-                req.magic = pmagic;
-                req.sl = psl;
-                req.tp = tp;
+            req.tp = tp;
+        }
 
-                if (PositionGetDouble(POSITION_TP) == req.tp && PositionGetDouble(POSITION_SL) == req.sl) continue;
-
-                if (!OrderSendAsync(req, res)) {
-                    int err = GetLastError();
-                    PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-                }
+        for (int j = 0; j < n; j++) {
+            PositionSelectByTicket(tickets[j]);
+            ZeroMemory(res);
+            req.position = tickets[j];
+            if (PositionGetDouble(POSITION_TP) == req.tp && PositionGetDouble(POSITION_SL) == req.sl) continue;
+            if (!OrderSendAsync(req, res)) {
+                int err = GetLastError();
+                PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
             }
         }
+
     }
 }
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 3, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
+void checkForEquity(ulong magic, double limit, int slippage = 30, int nRetry = 5, int mRetry = 2000, ENUM_FILLING filling = FILLING_DEFAULT) {
     if (limit == 0) return;
 
     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -1957,6 +2010,19 @@ double SellSL(ENUM_SL sltype, int lookback, double price = 0, int dev = 0, int s
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
+double GetTickValue(string symbol = NULL) {
+    if (symbol == NULL) symbol = _Symbol;
+    double price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+    double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+    double profit = 0;
+    if (OrderCalcProfit(ORDER_TYPE_BUY, symbol, 1, price, price + tickSize, profit) && profit > 0)
+        return profit;
+    return SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 string Trim(string s) {
     string str = s + " ";
     StringTrimLeft(str);
@@ -1980,9 +2046,19 @@ int ArraySearch(const T &arr[], T value) {
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
+template<typename T>
+int ArrayAdd(T &arr[], T value) {
+    int n = ArrayResize(arr, ArraySize(arr) + 1);
+    arr[n - 1] = value;
+    return n;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
 int CountDigits(double val, int maxPrecision = 8) {
     int digits = 0;
-    while(NormalizeDouble(val, digits) != NormalizeDouble(val, maxPrecision))
+    while (NormalizeDouble(val, digits) != NormalizeDouble(val, maxPrecision))
         digits++;
     return digits;
 }

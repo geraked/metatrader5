@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.5"
+#property version     "1.6"
 #property description "A Strategy Using Chandelier Exit and ZLSMA Indicators Based on the Heikin Ashi Candles"
 #property description "AUDUSD-15M  2019.01.01 - 2023.08.01"
 
@@ -22,7 +22,8 @@ input bool CloseOrders = true; // Check For Closing Conditions
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 3; // Risk (%)
+input double Risk = 3; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = true; // Ignore SL
 input bool Trail = true; // Trailing Stop
 input double TrailingStopLevel = 50; // Trailing Stop Level (%) (0: Disable)
@@ -142,7 +143,9 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
 
     HA_handle = iCustom(NULL, 0, I_HA);
@@ -155,7 +158,6 @@ int OnInit() {
     }
 
     EventSetTimer(TimerInterval);
-
     return INIT_SUCCEEDED;
 }
 
@@ -202,7 +204,7 @@ void OnTick() {
         if (!OpenNewPos) return;
         if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
+        if ((Grid || !MultipleOpenPos) && ea.OPTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();

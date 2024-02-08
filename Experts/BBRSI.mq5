@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "Copyright 2023, Geraked"
 #property link        "https://github.com/geraked"
-#property version     "1.5"
+#property version     "1.6"
 #property description "A strategy using Bollinger Bands and RSI"
 #property description "XAUUSD-5M  2021.02.26 - 2023.09.15"
 
@@ -17,14 +17,16 @@ input double BBDev = 2; // BB Deviations
 input int RSILen = 7; // RSI Period
 
 input group "General"
-input double SLCoef = 0.9; // SL Coefficient
 input double TPCoef = 1; // TP Coefficient
+input double SLCoef = 0.9; // SL Coefficient
+input int SLDev = 0; // SL Deviation (Points)
 input bool CloseOrders = false; // Check For Closing Conditions
 input bool CloseOnProfit = true; // Close Only On Profit
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
-input double Risk = 1.0; // Risk (%)
+input double Risk = 1.0; // Risk
+input ENUM_RISK RiskMode = RISK_DEFAULT; // Risk Mode
 input bool IgnoreSL = true; // Ignore SL
 input bool IgnoreTP = true; // Ignore TP
 input bool Trail = true; // Trailing Stop
@@ -76,7 +78,7 @@ bool BuySignal() {
     if (!c) return false;
 
     double in = Ask();
-    double sl = BB_L[1] - SLCoef * (BB_M[1] - BB_L[1]);
+    double sl = !SLCoef ? in - SLDev * _Point : BB_L[1] - SLCoef * (BB_M[1] - BB_L[1]) - SLDev * _Point;
     double tp = in + TPCoef * MathAbs(in - sl);
     ea.BuyOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
@@ -91,7 +93,7 @@ bool SellSignal() {
     if (!c) return false;
 
     double in = Bid();
-    double sl = BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]);
+    double sl = !SLCoef ? in + SLDev * _Point : BB_U[1] + SLCoef * (BB_U[1] - BB_M[1]) + SLDev * _Point;
     double tp = in - TPCoef * MathAbs(in - sl);
     ea.SellOpen(in, sl, tp, IgnoreSL, IgnoreTP);
     return true;
@@ -134,7 +136,9 @@ int OnInit() {
     ea.newsMinsBefore = NewsMinsBefore;
     ea.newsMinsAfter = NewsMinsAfter;
     ea.filling = Filling;
+    ea.riskMode = RiskMode;
 
+    if (RiskMode == RISK_FIXED_VOL || RiskMode == RISK_MIN_AMOUNT) ea.risk = Risk;
     if (News) fetchCalendarFromYear(NewsStartYear);
 
     BB_handle = iBands(NULL, 0, BBLen, 0, BBDev, PRICE_CLOSE);
@@ -146,7 +150,6 @@ int OnInit() {
     }
 
     EventSetTimer(TimerInterval);
-
     return INIT_SUCCEEDED;
 }
 
@@ -192,7 +195,7 @@ void OnTick() {
         if (!OpenNewPos) return;
         if (SpreadLimit != -1 && Spread() > SpreadLimit) return;
         if (MarginLimit && PositionsTotal() > 0 && AccountInfoDouble(ACCOUNT_MARGIN_LEVEL) < MarginLimit) return;
-        if ((Grid || !MultipleOpenPos) && ea.PosTotal() > 0) return;
+        if ((Grid || !MultipleOpenPos) && ea.OPTotal() > 0) return;
 
         if (BuySignal()) return;
         SellSignal();
