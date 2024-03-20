@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.2"
+#property version   "1.3"
 
 #include <SysTime.mqh>
 
@@ -103,7 +103,7 @@ bool StorageDel(string key) {
 //+------------------------------------------------------------------+
 //| Deletes global variables with specified prefix in their names.   |
 //+------------------------------------------------------------------+
-bool StorageDeleteAll(string prefix = NULL) {
+bool StorageDeleteAll(string prefix = NULL, datetime time_limit = 0, ENUM_STORAGE_TIME time_mode = STORAGE_TIME_SYSTEM) {
     if (prefix == NULL || prefix == "") {
         if (FileIsExist(STORAGE_DB_PATH, FILE_COMMON) && !FileDelete(STORAGE_DB_PATH, FILE_COMMON)) {
             PrintFormat("Error (%s, FileDelete): #%d", __FUNCTION__, GetLastError());
@@ -115,7 +115,12 @@ bool StorageDeleteAll(string prefix = NULL) {
     int db = _storageInitDb(DATABASE_OPEN_READWRITE);
     if (db == INVALID_HANDLE) return false;
 
+    string time_col = "time_system";
+    if (time_mode == STORAGE_TIME_TRADESERVER)
+        time_col = "time_server";
+
     string sql = StringFormat("DELETE FROM T WHERE key LIKE '%s%%'", prefix);
+    if (time_limit != 0) sql += StringFormat(" AND %s <= %d", time_col, time_limit);
     if (!DatabaseExecute(db, sql)) {
         PrintFormat("Error (%s, Delete): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
