@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.3"
+#property version   "1.4"
 
 #include <SysTime.mqh>
 
@@ -21,8 +21,14 @@ enum ENUM_STORAGE_TIME {
 //+------------------------------------------------------------------+
 template<typename T>
 T StorageGet(string key, T default_value) {
+    while (GlobalVariableCheck("_DbLock"));
+    while (!GlobalVariableTemp("_DbLock"));
+
     int db = _storageInitDb();
-    if (db == INVALID_HANDLE) return default_value;
+    if (db == INVALID_HANDLE) {
+        while (!GlobalVariableDel("_DbLock"));
+        return default_value;
+    }
 
     string val;
     string sql = StringFormat("SELECT value FROM T WHERE key='%s' LIMIT 1", key);
@@ -31,6 +37,7 @@ T StorageGet(string key, T default_value) {
     if (dp == INVALID_HANDLE) {
         PrintFormat("Error (%s, DatabasePrepare): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
+        while (!GlobalVariableDel("_DbLock"));
         return default_value;
     }
 
@@ -44,6 +51,7 @@ T StorageGet(string key, T default_value) {
 
     DatabaseFinalize(dp);
     DatabaseClose(db);
+    while (!GlobalVariableDel("_DbLock"));
 
     if (val == NULL)
         return default_value;
@@ -58,8 +66,14 @@ T StorageGet(string key, T default_value) {
 //+------------------------------------------------------------------+
 template<typename T>
 bool StorageSet(string key, T value) {
+    while (GlobalVariableCheck("_DbLock"));
+    while (!GlobalVariableTemp("_DbLock"));
+
     int db = _storageInitDb(DATABASE_OPEN_READWRITE);
-    if (db == INVALID_HANDLE) return false;
+    if (db == INVALID_HANDLE) {
+        while (!GlobalVariableDel("_DbLock"));
+        return false;
+    }
 
     string sql = "INSERT OR REPLACE INTO T (key, value, time_system, time_server) VALUES (";
     sql += StringFormat("'%s', ", key);
@@ -75,9 +89,11 @@ bool StorageSet(string key, T value) {
     if (!DatabaseExecute(db, sql)) {
         PrintFormat("Error (%s, Upsert): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
+        while (!GlobalVariableDel("_DbLock"));
         return false;
     }
     DatabaseClose(db);
+    while (!GlobalVariableDel("_DbLock"));
 
     return true;
 }
@@ -86,16 +102,24 @@ bool StorageSet(string key, T value) {
 //| Deletes a global variable.                                       |
 //+------------------------------------------------------------------+
 bool StorageDel(string key) {
+    while (GlobalVariableCheck("_DbLock"));
+    while (!GlobalVariableTemp("_DbLock"));
+
     int db = _storageInitDb(DATABASE_OPEN_READWRITE);
-    if (db == INVALID_HANDLE) return false;
+    if (db == INVALID_HANDLE) {
+        while (!GlobalVariableDel("_DbLock"));
+        return false;
+    }
 
     string sql = StringFormat("DELETE FROM T WHERE key='%s'", key);
     if (!DatabaseExecute(db, sql)) {
         PrintFormat("Error (%s, Delete): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
+        while (!GlobalVariableDel("_DbLock"));
         return false;
     }
     DatabaseClose(db);
+    while (!GlobalVariableDel("_DbLock"));
 
     return true;
 }
@@ -104,16 +128,24 @@ bool StorageDel(string key) {
 //| Deletes global variables with specified prefix in their names.   |
 //+------------------------------------------------------------------+
 bool StorageDeleteAll(string prefix = NULL, datetime time_limit = 0, ENUM_STORAGE_TIME time_mode = STORAGE_TIME_SYSTEM) {
+    while (GlobalVariableCheck("_DbLock"));
+    while (!GlobalVariableTemp("_DbLock"));
+
     if (prefix == NULL || prefix == "") {
         if (FileIsExist(STORAGE_DB_PATH, FILE_COMMON) && !FileDelete(STORAGE_DB_PATH, FILE_COMMON)) {
             PrintFormat("Error (%s, FileDelete): #%d", __FUNCTION__, GetLastError());
+            while (!GlobalVariableDel("_DbLock"));
             return false;
         }
+        while (!GlobalVariableDel("_DbLock"));
         return true;
     }
 
     int db = _storageInitDb(DATABASE_OPEN_READWRITE);
-    if (db == INVALID_HANDLE) return false;
+    if (db == INVALID_HANDLE) {
+        while (!GlobalVariableDel("_DbLock"));
+        return false;
+    }
 
     string time_col = "time_system";
     if (time_mode == STORAGE_TIME_TRADESERVER)
@@ -124,9 +156,11 @@ bool StorageDeleteAll(string prefix = NULL, datetime time_limit = 0, ENUM_STORAG
     if (!DatabaseExecute(db, sql)) {
         PrintFormat("Error (%s, Delete): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
+        while (!GlobalVariableDel("_DbLock"));
         return false;
     }
     DatabaseClose(db);
+    while (!GlobalVariableDel("_DbLock"));
     return true;
 }
 
@@ -134,8 +168,14 @@ bool StorageDeleteAll(string prefix = NULL, datetime time_limit = 0, ENUM_STORAG
 //| Returns time of the last updating the global variable.           |
 //+------------------------------------------------------------------+
 datetime StorageLastUpdate(string key, ENUM_STORAGE_TIME time = STORAGE_TIME_SYSTEM) {
+    while (GlobalVariableCheck("_DbLock"));
+    while (!GlobalVariableTemp("_DbLock"));
+
     int db = _storageInitDb();
-    if (db == INVALID_HANDLE) return 0;
+    if (db == INVALID_HANDLE) {
+        while (!GlobalVariableDel("_DbLock"));
+        return 0;
+    }
 
     string time_col = "time_system";
     if (time == STORAGE_TIME_TRADESERVER)
@@ -148,6 +188,7 @@ datetime StorageLastUpdate(string key, ENUM_STORAGE_TIME time = STORAGE_TIME_SYS
     if (dp == INVALID_HANDLE) {
         PrintFormat("Error (%s, DatabasePrepare): #%d", __FUNCTION__, GetLastError());
         DatabaseClose(db);
+        while (!GlobalVariableDel("_DbLock"));
         return val;
     }
 
@@ -161,6 +202,7 @@ datetime StorageLastUpdate(string key, ENUM_STORAGE_TIME time = STORAGE_TIME_SYS
 
     DatabaseFinalize(dp);
     DatabaseClose(db);
+    while (!GlobalVariableDel("_DbLock"));
     return val;
 }
 
