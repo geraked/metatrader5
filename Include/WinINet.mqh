@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      WinINet.mqh |
-//|                                          Copyright 2023, Geraked |
+//|                                     Copyright 2023-2024, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2023, Geraked"
+#property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.4"
+#property version   "1.5"
 
 #define WININET_TIMEOUT_SECS   300
 #define WININET_BUFF_SIZE      16384
@@ -151,8 +151,14 @@ int WebReq(
         return _wininetErr("HttpAddRequestHeaders", session, connection, request);
 
 //- Send the request.
-    if (!HttpSendRequestExW(request, 0, 0, 0, 0))
-        return _wininetErr("HttpSendRequestEx", session, connection, request);
+    int cnt = 1;
+    while (!HttpSendRequestExW(request, 0, 0, 0, 0)) {
+        uint err = kernel32::GetLastError();
+        if (err != 12029 || cnt == 5)
+            return _wininetErr("HttpSendRequestEx", session, connection, request);
+        Sleep(1000);
+        cnt++;
+    }
     bIdx = 0;
     bLen2 = 0;
     while (true) {
@@ -224,7 +230,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.4",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.5",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
