@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023-2024, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.5"
+#property version   "1.6"
 
 #define WININET_TIMEOUT_SECS   300
 #define WININET_BUFF_SIZE      16384
@@ -153,8 +153,7 @@ int WebReq(
 //- Send the request.
     int cnt = 1;
     while (!HttpSendRequestExW(request, 0, 0, 0, 0)) {
-        uint err = kernel32::GetLastError();
-        if (err != 12029 || cnt == 5)
+        if (cnt == 5)
             return _wininetErr("HttpSendRequestEx", session, connection, request);
         Sleep(1000);
         cnt++;
@@ -230,7 +229,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.5",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.6",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
