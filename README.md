@@ -36,7 +36,7 @@ We kindly request users who benefit from the EAs to consider contributing up to 
 To make a contribution, please send it in `USDT TRC20` to the following crypto address:
 
 ```
-TRyA3ovZiA1d6jdECc4mE5rpDP4pyWi5HA
+TUSZtoZGzwXxnL6KQ9RjimtY1TY7dTEjFL
 ```
 
 Thank you for your support!
