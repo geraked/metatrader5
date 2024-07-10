@@ -1,3 +1,5 @@
+![cover](cover.jpg)
+
 # Trading Strategies
 
 Implementation of Trading Strategies for Backtesting in MetaTrader 5
