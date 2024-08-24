@@ -1,6 +1,6 @@
 ![cover](cover.jpg)
 
-# Trading Strategies
+# 🤖 Trading Strategies
 
 Implementation of Trading Strategies for Backtesting in MetaTrader 5
 
@@ -21,19 +21,13 @@ Implementation of Trading Strategies for Backtesting in MetaTrader 5
 
 Additionally, there are strategies available for utilization within TradingView. If this piques your interest, you can explore them in this [repository](https://github.com/geraked/tradingview).
 
-## Caution
+## ⚠️ Caution
 
 Please be aware that some Expert Advisors (EAs) have been combined with the Grid technique to forcefully enhance profitability, but this approach also introduces significant risk. It's important to note that the optimal symbol, time frame, and parameters for each EA may vary depending on your broker and account specifications. Therefore, before deploying any EA on your live account, we strongly recommend conducting thorough backtesting to ensure its effectiveness and reliability.
 
-## Support the Project
+## 🚀 Support This Project
 
-If you find these EAs helpful and profitable, you have the option to support the ongoing development and maintenance of this open-source project. Your support helps ensure the availability of future updates and development of new EAs.
-
-### Contribution Request
-
-We kindly request users who benefit from the EAs to consider contributing up to 2% of their monthly profits to the project. Your contributions go a long way in supporting the development and maintenance efforts.
-
-### How to Contribute
+Creating and maintaining this open-source project takes significant time and effort. If you find value in my work, consider supporting the project with a donation. Every contribution, no matter the size, helps sustain and improve the project.
 
 To make a contribution, please send it in `USDT TRC20` to the following crypto address:
 
@@ -41,17 +35,27 @@ To make a contribution, please send it in `USDT TRC20` to the following crypto a
 TUSZtoZGzwXxnL6KQ9RjimtY1TY7dTEjFL
 ```
 
-Thank you for your support!
+Thank you for your support! 🙏❤️
 
-## Credits
+### 🌟 Get Featured as a Sponsor
+
+If you'd like to be recognized as a sponsor of this project, simply message me on Telegram `@Rsajedi2020` after your donation. I'll gladly add your name or organization to the list of sponsors.
+
+## 🛠️ MQL5 Development Services
+
+I’m available for MQL5 development projects! If you have a custom project or need a tailored solution, feel free to reach out to me. 
+
+📩 **Contact me on Telegram**: `@Rsajedi2020` to discuss your requirements and get a quote. Let’s bring your trading ideas to life!
+
+## 🏆 Credits
 
 **Rabist [AUTHOR]** - view on [LinkedIn](https://www.linkedin.com/in/rabist).
 
-## License
+## 📜 License
 
 This project is licensed under the [MIT LICENSE](LICENSE). This means you can modify it however you want as long as the original copyright and license are included in your release.
 
-## Disclaimer
+## 🚨 Disclaimer
 
 **USE AT YOUR OWN RISK:** Trading financial instruments involves a high level of risk, and there are no guarantees of profit. Markets are known for their volatility, and past performance is not indicative of future results.
 
