@@ -11,7 +11,6 @@
 
 #include <EAUtils.mqh>
 
-
 input group "Indicator Parameters"
 input int FastPeriod = 10; // Fast Period
 input int SlowPeriod = 34; // Slow Period
@@ -22,8 +21,6 @@ input double TPCoef = 1.0; // TP Coefficient
 input ENUM_SL SLType = SL_SWING; // SL Type
 input int SLLookback = 10; // SL Look Back
 input int SLDev = 60; // SL Deviation (Points)
-input bool CloseOrders = true; // Check For Closing Conditions
-input bool CloseOnProfit = false; // Close Only On Profit
 input bool Reverse = false; // Reverse Signal
 
 input group "Risk Management"
