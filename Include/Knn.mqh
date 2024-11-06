@@ -124,6 +124,7 @@ private:
     int m_k;
     int m_window_size;
     ulong m_cnt;
+    vector weights;
     matrix X_window;
     vector y_window;
     CScaler scaler;
@@ -166,6 +167,7 @@ void CKnn::Init(ulong cols = 0) {
     m_cnt = 0;
     scaler.Init();
     if (cols == 0) return;
+    weights = vector::Full(cols, 1.0);
     X_window = matrix::Full(m_window_size, cols, 0);
     y_window = vector::Full(m_window_size, 0);
 }
@@ -192,17 +194,17 @@ void CKnn::Fit(const matrix &X, const vector &y) {
 double CKnn::calcDistance(vector &u, vector &v) {
     double dist = 0;
     if (m_distance == DISTANCE_EUCLIDEAN) {
-        vector d = u - v;
+        vector d = (u - v) * weights;
         dist = d.Norm(VECTOR_NORM_P, 2);
     } else if (m_distance == DISTANCE_MANHATTAN) {
-        vector d = u - v;
+        vector d = (u - v) * weights;
         dist = d.Norm(VECTOR_NORM_P, 1);
     } else if (m_distance == DISTANCE_COSINE) {
-        double u_norm = u.Norm(VECTOR_NORM_P, 2);
-        double v_norm = v.Norm(VECTOR_NORM_P, 2);
+        double u_norm = (u * weights).Norm(VECTOR_NORM_P, 2);
+        double v_norm = (v * weights).Norm(VECTOR_NORM_P, 2);
         double u_v = u_norm * v_norm;
         if (u_v == 0) u_v = DBL_EPSILON;
-        double sim = u.Dot(v) / u_v;
+        double sim = (u * weights).Dot(v * weights) / u_v;
         dist = 1 - sim;
     }
     return dist;
@@ -212,7 +214,7 @@ double CKnn::calcDistance(vector &u, vector &v) {
 //|                                                                  |
 //+------------------------------------------------------------------+
 double CKnn::getMode(vector &u) {
-    CHashMap<int, int> hm();
+    CHashMap<int, int> hm;
     double mode;
     int key;
     int val;
