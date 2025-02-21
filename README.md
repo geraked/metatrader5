@@ -2,7 +2,7 @@
 
 # 🤖 Trading Strategies
 
-Implementation of Trading Strategies for Backtesting in MetaTrader 5
+Implementation of Trading Strategies for Backtesting in MetaTrader 5 (MT5) Using MQL5 Programming Language – Free Open-Source Trading Bots (Expert Advisors) for MT5
 
 | Expert Advisor | Download | Strategy Video | Backtesting Report | Description |
 | --- | :---: | :---: | :---: | --- |
