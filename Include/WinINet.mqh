@@ -147,7 +147,7 @@ int WebReq(
                         "Content-Length: %d\r\n", n);
     bLen = StringToShortArray(head + headers, buff);
     if (bLen > 0 && buff[bLen - 1] == 0) bLen--;
-    if (!HttpAddRequestHeadersW(request, buff, bLen, 0x80000000))
+    if (!HttpAddRequestHeadersW(request, buff, bLen, 0x20000000 | 0x80000000))
         return _wininetErr("HttpAddRequestHeaders", session, connection, request);
 
 //- Send the request.
