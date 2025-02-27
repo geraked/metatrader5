@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                      WinINet.mqh |
-//|                                     Copyright 2023-2024, Geraked |
+//|                                     Copyright 2023-2025, Geraked |
 //|                                       https://github.com/geraked |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2023-2024, Geraked"
+#property copyright "Copyright 2023-2025, Geraked"
 #property link      "https://github.com/geraked"
-#property version   "1.6"
+#property version   "1.7"
 
 #define WININET_TIMEOUT_SECS   300
 #define WININET_BUFF_SIZE      16384
@@ -20,6 +20,8 @@
 #define INTERNET_FLAG_IGNORE_CERT_DATE_INVALID  0x00002000
 #define INTERNET_FLAG_IGNORE_CERT_CN_INVALID    0x00001000
 #define INTERNET_FLAG_NO_AUTO_REDIRECT          0x00200000
+#define HTTP_ADDREQ_FLAG_REPLACE                0x80000000
+#define HTTP_ADDREQ_FLAG_ADD                    0x20000000
 
 #define INTERNET_OPTION_HTTP_DECODING           65
 #define INTERNET_OPTION_SEND_TIMEOUT            5
@@ -147,7 +149,7 @@ int WebReq(
                         "Content-Length: %d\r\n", n);
     bLen = StringToShortArray(head + headers, buff);
     if (bLen > 0 && buff[bLen - 1] == 0) bLen--;
-    if (!HttpAddRequestHeadersW(request, buff, bLen, 0x20000000 | 0x80000000))
+    if (!HttpAddRequestHeadersW(request, buff, bLen, HTTP_ADDREQ_FLAG_ADD | HTTP_ADDREQ_FLAG_REPLACE))
         return _wininetErr("HttpAddRequestHeaders", session, connection, request);
 
 //- Send the request.
@@ -229,7 +231,7 @@ bool WebReq(WininetRequest &req, WininetResponse &res) {
 //+------------------------------------------------------------------+
 string GetUserAgent() {
     return StringFormat(
-               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.6",
+               "%s/%d (%s; %s; %s %d Cores; %dMB RAM) WinINet/1.7",
                TerminalInfoString(TERMINAL_NAME),
                TerminalInfoInteger(TERMINAL_BUILD),
                TerminalInfoString(TERMINAL_OS_VERSION),
