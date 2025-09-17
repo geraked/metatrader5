@@ -997,9 +997,8 @@ double calcCostByTicket(ulong ticket) {
         long pos_id = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
         double deal_comm = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
         double deal_fee  = HistoryDealGetDouble(ticket, DEAL_FEE);
-        double deal_swap = 0.0; // optional
-        double tmp_swap;
-        if (HistoryDealGetDouble(ticket, DEAL_SWAP, tmp_swap)) deal_swap = tmp_swap;
+        double deal_swap = 0.0;
+        if (!HistoryDealGetDouble(ticket, DEAL_SWAP, deal_swap)) deal_swap = 0.0;
 
         // If we can, aggregate costs across all deals for the same position
         if (pos_id != 0 && HistorySelectByPosition(pos_id)) {
