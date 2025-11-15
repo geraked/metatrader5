@@ -37,16 +37,6 @@ TUSZtoZGzwXxnL6KQ9RjimtY1TY7dTEjFL
 
 Thank you for your support! 🙏❤️
 
-### 🌟 Get Featured as a Sponsor
-
-If you'd like to be recognized as a sponsor of this project, simply message me on Telegram `@Rsajedi2020` after your donation. I'll gladly add your name or organization to the list of sponsors.
-
-## 🛠️ MQL5 Development Services
-
-I’m available for MQL5 development projects! If you have a custom project or need a tailored solution, feel free to reach out to me. 
-
-📩 **Contact me on Telegram**: `@Rsajedi2020` to discuss your requirements and get a quote. Let’s bring your trading ideas to life!
-
 ## 🏆 Credits
 
 **Rabist [AUTHOR]** - view on [LinkedIn](https://www.linkedin.com/in/rabist).
