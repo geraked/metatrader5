@@ -964,25 +964,64 @@ int positionsPrices(ulong magic, double &arr[], string name = NULL) {
 //| Sum of swap, commission, fee                                     |
 //+------------------------------------------------------------------+
 double calcCostByTicket(ulong ticket) {
-    if (!PositionSelectByTicket(ticket)) {
-        int err = GetLastError();
-        PrintFormat("%s error #%d : %s", __FUNCTION__, err, ErrorDescription(err));
-        return 0;
-    }
-    double pswap = PositionGetDouble(POSITION_SWAP);
-    double pcomm = 0;
-    double pfee = 0;
-    HistorySelectByPosition(PositionGetInteger(POSITION_IDENTIFIER));
-    HistoryDealSelect(ticket);
-    if (!HistoryDealGetDouble(ticket, DEAL_FEE, pfee) || !HistoryDealGetDouble(ticket, DEAL_COMMISSION, pcomm)) {
-        pcomm = 0;
-        pfee = 0;
-        int err = GetLastError();
-        if (err != ERR_TRADE_DEAL_NOT_FOUND) {
-            PrintFormat("%s error #%d : %s (ticket=%d)", __FUNCTION__, err, ErrorDescription(err), ticket);
+    // This function must work whether `ticket` is a position ticket or a deal ticket.
+    // 1 Try as a position ticket first.
+    double pswap = 0.0;
+    double pcomm = 0.0;
+    double pfee = 0.0;
+
+    ResetLastError();
+    if (PositionSelectByTicket(ticket)) {
+        long pos_id = (long)PositionGetInteger(POSITION_IDENTIFIER);
+        pswap = PositionGetDouble(POSITION_SWAP);
+        // Sum commission and fee from all deals of this position
+        if (!HistorySelectByPosition(pos_id)) {
+            int err = GetLastError();
+            if (err) PrintFormat("%s HistorySelectByPosition error #%d : %s (posId=%I64d)", __FUNCTION__, err, ErrorDescription(err), pos_id);
+        } else {
+            int deals_total = HistoryDealsTotal();
+            for (int i = 0; i < deals_total; i++) {
+                ulong dtk = HistoryDealGetTicket(i);
+                pcomm += HistoryDealGetDouble(dtk, DEAL_COMMISSION);
+                pfee  += HistoryDealGetDouble(dtk, DEAL_FEE);
+                // Some brokers provide swap as separate deals; position swap already includes it,
+                // so we intentionally do NOT add DEAL_SWAP here to avoid double counting.
+            }
         }
+        return -(pcomm + pswap + pfee);
     }
-    return -(pcomm + pswap + pfee);
+
+    // 2) If not a position ticket, try as a deal ticket (from history).
+    ResetLastError();
+    if (HistoryDealSelect(ticket)) {
+        long pos_id = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+        double deal_comm = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+        double deal_fee  = HistoryDealGetDouble(ticket, DEAL_FEE);
+        double deal_swap = 0.0;
+        if (!HistoryDealGetDouble(ticket, DEAL_SWAP, deal_swap)) deal_swap = 0.0;
+
+        // If we can, aggregate costs across all deals for the same position
+        if (pos_id != 0 && HistorySelectByPosition(pos_id)) {
+            int deals_total = HistoryDealsTotal();
+            pcomm = 0.0; pfee = 0.0; pswap = 0.0;
+            for (int i = 0; i < deals_total; i++) {
+                ulong dtk = HistoryDealGetTicket(i);
+                pcomm += HistoryDealGetDouble(dtk, DEAL_COMMISSION);
+                pfee  += HistoryDealGetDouble(dtk, DEAL_FEE);
+                double dsw;
+                if (HistoryDealGetDouble(dtk, DEAL_SWAP, dsw)) pswap += dsw;
+            }
+            return -(pcomm + pswap + pfee);
+        }
+
+        // Fallback: return only this deal's costs
+        return -(deal_comm + deal_fee + deal_swap);
+    }
+
+    // 3) Otherwise, nothing found — could be a pending order ticket, which has no cost yet
+    int err = GetLastError();
+    if (err) PrintFormat("%s could not resolve ticket=%I64u, error #%d : %s", __FUNCTION__, ticket, err, ErrorDescription(err));
+    return 0;
 }
 
 //+------------------------------------------------------------------+
